@@ -10,8 +10,10 @@ import { SettingsPopover } from "./SettingsPopover";
 import { DashboardEditDialog } from "./DashboardEditDialog";
 import { WheelsList } from "./WheelsList";
 import { WheelEditDialog } from "./WheelEditDialog";
+import { PresetsScreen } from "./PresetsScreen";
+import { PresetEditDialog } from "@/components/presets/PresetEditDialog";
 import { CreateFab } from "./CreateFab";
-import type { Wheel } from "@/lib/db/schema";
+import type { Preset, Wheel } from "@/lib/db/schema";
 
 type DashboardShellProps = {
   hash: string;
@@ -20,34 +22,41 @@ type DashboardShellProps = {
   initialWheels: Wheel[];
 };
 
+type Screen = "wheels" | "presets";
 type WheelDialogState = { mode: "create" } | { mode: "edit"; wheel: Wheel } | null;
+type PresetDialogState = { mode: "create" } | { mode: "edit"; preset: Preset } | null;
 
 export function DashboardShell({ hash, initialName, hasPassword: initialHasPassword, initialWheels }: DashboardShellProps) {
   const [name, setName] = useState(initialName);
   const [hasPassword, setHasPassword] = useState(initialHasPassword);
   const [wheels, setWheels] = useState(initialWheels);
+  const [screen, setScreen] = useState<Screen>("wheels");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [wheelDialog, setWheelDialog] = useState<WheelDialogState>(null);
+  const [presetDialog, setPresetDialog] = useState<PresetDialogState>(null);
+  const [presetRefreshToken, setPresetRefreshToken] = useState(0);
 
   const bottomBar = {
     left: {
       icon: <LayoutGrid size={22} strokeWidth={1.9} aria-hidden="true" />,
       label: "Dashboard",
-      active: true,
+      active: screen === "wheels",
+      onClick: () => setScreen("wheels"),
     },
     right: {
       icon: <Library size={22} strokeWidth={1.9} aria-hidden="true" />,
       label: "Presets",
-      disabled: true,
+      active: screen === "presets",
+      onClick: () => setScreen("presets"),
     },
   };
 
   // Shown (disabled) inside every dialog opened from this screen — matches
   // the wireframe's "Dashboard[disabled]/Presets[disabled]" bottom bar.
   const dialogBottomBar = {
-    left: { ...bottomBar.left, active: false, disabled: true },
-    right: { ...bottomBar.right, disabled: true },
+    left: { ...bottomBar.left, active: false, disabled: true, onClick: undefined },
+    right: { ...bottomBar.right, active: false, disabled: true, onClick: undefined },
   };
 
   function handleWheelSaved(wheel: Wheel) {
@@ -66,6 +75,16 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
   function handleWheelRemoved(wheelId: number) {
     setWheels((prev) => prev.filter((w) => w.id !== wheelId));
     setWheelDialog(null);
+  }
+
+  function handlePresetSaved() {
+    setPresetDialog(null);
+    setPresetRefreshToken((t) => t + 1);
+  }
+
+  function handlePresetRemoved() {
+    setPresetDialog(null);
+    setPresetRefreshToken((t) => t + 1);
   }
 
   return (
@@ -97,18 +116,29 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
       <div className="relative mx-4 mt-[18px] flex-1">
         <div className="absolute inset-0 overflow-hidden rounded-[20px] border border-border bg-panel-inset">
           <div className="h-full overflow-y-auto px-4 pt-4 pb-[160px]">
-            <WheelsList
-              hash={hash}
-              wheels={wheels}
-              onEdit={(wheel) => setWheelDialog({ mode: "edit", wheel })}
-              onCopied={handleWheelCopied}
-              onRemoved={handleWheelRemoved}
-            />
+            {screen === "wheels" ? (
+              <WheelsList
+                hash={hash}
+                wheels={wheels}
+                onEdit={(wheel) => setWheelDialog({ mode: "edit", wheel })}
+                onCopied={handleWheelCopied}
+                onRemoved={handleWheelRemoved}
+              />
+            ) : (
+              <PresetsScreen
+                hash={hash}
+                refreshToken={presetRefreshToken}
+                onEdit={(preset) => setPresetDialog({ mode: "edit", preset })}
+              />
+            )}
           </div>
         </div>
 
         <BottomBar left={bottomBar.left} right={bottomBar.right} />
-        <CreateFab label="Create Wheel" onClick={() => setWheelDialog({ mode: "create" })} />
+        <CreateFab
+          label={screen === "wheels" ? "Create Wheel" : "Create preset"}
+          onClick={() => (screen === "wheels" ? setWheelDialog({ mode: "create" }) : setPresetDialog({ mode: "create" }))}
+        />
       </div>
 
       {editOpen && (
@@ -132,6 +162,18 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
           onDismiss={() => setWheelDialog(null)}
           onSaved={handleWheelSaved}
           onRemoved={handleWheelRemoved}
+        />
+      )}
+
+      {presetDialog && (
+        <PresetEditDialog
+          hash={hash}
+          mode={presetDialog.mode}
+          preset={presetDialog.mode === "edit" ? presetDialog.preset : undefined}
+          bottomBar={dialogBottomBar}
+          onDismiss={() => setPresetDialog(null)}
+          onSaved={handlePresetSaved}
+          onRemoved={handlePresetRemoved}
         />
       )}
     </div>

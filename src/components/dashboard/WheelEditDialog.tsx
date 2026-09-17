@@ -12,6 +12,8 @@ import { WHEEL_CATEGORIES } from "@/lib/categories";
 import { dedupeNames, parseNameList, sortNames } from "@/lib/nameList";
 import { copyToClipboard, readFromClipboard } from "@/lib/clipboard";
 import { createWheelAction, removeWheelAction, resetWheelAction, updateWheelAction } from "@/app/d/[hash]/actions";
+import { LoadFromPresetDialog } from "@/components/presets/LoadFromPresetDialog";
+import { PresetEditDialog } from "@/components/presets/PresetEditDialog";
 import type { Wheel } from "@/lib/db/schema";
 
 type WheelEditDialogProps = {
@@ -32,6 +34,8 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
   const [pending, setPending] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [loadFromPresetOpen, setLoadFromPresetOpen] = useState(false);
+  const [saveAsPresetOpen, setSaveAsPresetOpen] = useState(false);
 
   async function handleSave() {
     if (!category) {
@@ -119,7 +123,8 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
 
         <div>
           <TextareaToolRow
-            tools={["copy", "paste", "sort", "dedupe", "clear"]}
+            tools={["load-preset", "copy", "paste", "sort", "dedupe", "save-preset", "clear"]}
+            onLoadPreset={() => setLoadFromPresetOpen(true)}
             onCopy={() => copyToClipboard(namesText)}
             onPaste={async () => {
               const clip = await readFromClipboard();
@@ -127,6 +132,7 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
             }}
             onSort={() => setNamesText(sortNames(parseNameList(namesText)).join("\n"))}
             onDedupe={() => setNamesText(dedupeNames(parseNameList(namesText)).join("\n"))}
+            onSavePreset={() => setSaveAsPresetOpen(true)}
             onClear={() => setNamesText("")}
           />
           <div className="mt-2">
@@ -159,6 +165,33 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
           danger
           onConfirm={handleReset}
           onCancel={() => setConfirmReset(false)}
+        />
+      )}
+
+      {loadFromPresetOpen && (
+        <LoadFromPresetDialog
+          hash={hash}
+          bottomBar={bottomBar}
+          onDismiss={() => setLoadFromPresetOpen(false)}
+          onAppend={(names) => {
+            setNamesText((prev) => (prev ? `${prev}\n${names.join("\n")}` : names.join("\n")));
+            setLoadFromPresetOpen(false);
+          }}
+          onReplace={(names) => {
+            setNamesText(names.join("\n"));
+            setLoadFromPresetOpen(false);
+          }}
+        />
+      )}
+
+      {saveAsPresetOpen && (
+        <PresetEditDialog
+          hash={hash}
+          mode="create"
+          initialNamesText={namesText}
+          bottomBar={bottomBar}
+          onDismiss={() => setSaveAsPresetOpen(false)}
+          onSaved={() => setSaveAsPresetOpen(false)}
         />
       )}
     </DialogShell>
