@@ -14,7 +14,7 @@ import { SpinButton } from "./SpinButton";
 import { VisualizationHost } from "./visualizations/VisualizationHost";
 import { WheelEditDialog } from "@/components/dashboard/WheelEditDialog";
 import { planSpin, type SpinPlan } from "@/lib/spin/forceEngine";
-import { pickTickClip, playShove, playTick, playWinChime } from "@/lib/sound";
+import { playVisualizationTick, playWinChime } from "@/lib/sound";
 import {
   sortCurrentBucketAction,
   shuffleCurrentBucketAction,
@@ -69,23 +69,20 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
     setSpinning(true);
   }
 
-  // Ticks (wheel/carousel/cylinder) or shoves (bowl) for the spin's duration —
-  // one tick clip is picked per spin and reused throughout; shoves pick fresh
-  // each time. Timed on the same decelerating cadence as LotteryBowl's own
-  // highlight cycling, so it feels tied to the visual even without a literal
-  // per-frame hook into the (CSS-driven) wheel/carousel/cylinder animations.
+  // Ticks the current visualization's own sound for the spin's duration, on
+  // the same decelerating cadence as LotteryBowl's own highlight cycling, so
+  // it feels tied to the visual even without a literal per-frame hook into
+  // the (CSS-driven) wheel/carousel/cylinder animations.
   useEffect(() => {
     if (!spinning || !spinPlan) return;
     let cancelled = false;
-    const tickClip = visualization === "bowl" ? null : pickTickClip();
     const start = Date.now();
 
     function tick() {
       if (cancelled) return;
       const elapsed = Date.now() - start;
       if (elapsed >= spinPlan!.durationMs) return;
-      if (visualization === "bowl") playShove();
-      else playTick(tickClip!);
+      playVisualizationTick(visualization);
       const progress = elapsed / spinPlan!.durationMs;
       setTimeout(tick, 70 + progress * 260);
     }

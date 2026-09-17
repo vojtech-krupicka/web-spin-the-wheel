@@ -1,5 +1,7 @@
 "use client";
 
+import type { WheelVisualization } from "@/lib/db/schema";
+
 /**
  * Sound effects via the Web Audio API. Real clips live in `public/sounds/`;
  * each category falls back to a synthesized sound automatically if its clip
@@ -112,18 +114,14 @@ export function playClick(): void {
   playRandomClip(CLICK_CLIPS, [1, 1], MASTER_VOLUME * 0.9, playSynthClick);
 }
 
-// ---- Spin ticks (wheel/carousel/cylinder) and shoves (bowl) ----
+// ---- Spin ticks — one fixed clip per visualization ----
 
-const TICK_CLIPS: string[] = [
-  "/sounds/tick-1.ogg",
-  "/sounds/tick-2.ogg",
-  "/sounds/tick-3.ogg",
-  "/sounds/tick-4.ogg",
-  "/sounds/tick-5.ogg",
-  "/sounds/tick-6.ogg",
-];
-
-const SHOVE_CLIPS: string[] = ["/sounds/shove-1.ogg", "/sounds/shove-2.ogg", "/sounds/shove-3.ogg", "/sounds/shove-4.ogg"];
+const VISUALIZATION_TICK_CLIPS: Record<WheelVisualization, string> = {
+  bowl: "/sounds/bowl.ogg",
+  carousel: "/sounds/carousel.ogg",
+  cylinder: "/sounds/cylinder.ogg",
+  wheel: "/sounds/wheel.ogg",
+};
 
 function playSynthTick(): void {
   const ctx = getContext();
@@ -139,21 +137,10 @@ function playSynthTick(): void {
   osc.stop(ctx.currentTime + 0.04);
 }
 
-/** One tick from the wheel's chosen clip for this spin — call {@link pickTickClip} once per spin and reuse the same URL. */
-export function playTick(url: string): void {
+/** One tick of the given visualization's own sound, with a small pitch jitter so repeats don't sound identical. */
+export function playVisualizationTick(visualization: WheelVisualization): void {
   if (muted) return;
-  playRandomClip([url], [0.94, 1.06], MASTER_VOLUME * 0.5, playSynthTick);
-}
-
-/** Picks one tick clip to reuse for an entire spin (same physical wheel clicking the same pin, not a different sound every tick). */
-export function pickTickClip(): string {
-  return TICK_CLIPS[Math.floor(Math.random() * TICK_CLIPS.length)];
-}
-
-/** Bowl/bag mode only — a fresh random shove each call, unlike the reused tick clip. */
-export function playShove(): void {
-  if (muted) return;
-  playRandomClip(SHOVE_CLIPS, [0.95, 1.05], MASTER_VOLUME * 0.55, playSynthTick);
+  playRandomClip([VISUALIZATION_TICK_CLIPS[visualization]], [0.94, 1.06], MASTER_VOLUME * 0.5, playSynthTick);
 }
 
 // ---- Winner banner chime ----
