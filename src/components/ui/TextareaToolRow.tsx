@@ -1,13 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { ArrowDownAZ, Clipboard, Copy, Eraser, FolderOpen, ListX, Save } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { AlertCircle, ArrowDownAZ, Check, Clipboard, Copy, Eraser, FolderOpen, ListX, Save } from "lucide-react";
 
 export type ToolKind = "load-preset" | "copy" | "paste" | "sort" | "dedupe" | "save-preset" | "clear";
 
-const TOOL_CONFIG: Record<Exclude<ToolKind, "load-preset" | "save-preset">, { icon: ReactNode; label: string }> = {
-  copy: { icon: <Copy size={16} aria-hidden="true" />, label: "Copy" },
-  paste: { icon: <Clipboard size={16} aria-hidden="true" />, label: "Paste" },
+const SYNC_TOOL_CONFIG: Record<"sort" | "dedupe" | "clear", { icon: ReactNode; label: string }> = {
   sort: { icon: <ArrowDownAZ size={16} aria-hidden="true" />, label: "Sort" },
   dedupe: { icon: <ListX size={16} aria-hidden="true" />, label: "Deduplicate" },
   clear: { icon: <Eraser size={16} aria-hidden="true" />, label: "Clear" },
@@ -15,8 +13,10 @@ const TOOL_CONFIG: Record<Exclude<ToolKind, "load-preset" | "save-preset">, { ic
 
 type TextareaToolRowProps = {
   tools: ToolKind[];
-  onCopy?: () => void;
-  onPaste?: () => void;
+  /** Return whether the copy actually succeeded — shown as brief inline feedback. */
+  onCopy?: () => Promise<boolean> | boolean;
+  /** Return whether the paste actually found clipboard text — clipboard-read is often blocked by the browser, so this can legitimately fail. */
+  onPaste?: () => Promise<boolean> | boolean;
   onSort?: () => void;
   onDedupe?: () => void;
   onClear?: () => void;
@@ -38,9 +38,7 @@ export function TextareaToolRow({
   onLoadPreset,
   onSavePreset,
 }: TextareaToolRowProps) {
-  const handlers: Partial<Record<ToolKind, (() => void) | undefined>> = {
-    copy: onCopy,
-    paste: onPaste,
+  const syncHandlers: Partial<Record<keyof typeof SYNC_TOOL_CONFIG, (() => void) | undefined>> = {
     sort: onSort,
     dedupe: onDedupe,
     clear: onClear,
@@ -71,21 +69,70 @@ export function TextareaToolRow({
       )}
 
       <div className="flex shrink-0 items-center gap-2">
-        {(Object.keys(TOOL_CONFIG) as (keyof typeof TOOL_CONFIG)[])
+        {tools.includes("copy") && onCopy && (
+          <FeedbackButton icon={<Copy size={16} aria-hidden="true" />} label="Copy" onClick={onCopy} />
+        )}
+        {tools.includes("paste") && onPaste && (
+          <FeedbackButton
+            icon={<Clipboard size={16} aria-hidden="true" />}
+            label="Paste"
+            errorHint="Couldn't read the clipboard — your browser may be blocking it. Try Ctrl+V directly in the text box instead."
+            onClick={onPaste}
+          />
+        )}
+        {(Object.keys(SYNC_TOOL_CONFIG) as (keyof typeof SYNC_TOOL_CONFIG)[])
           .filter((tool) => tools.includes(tool))
           .map((tool) => (
             <button
               key={tool}
               type="button"
-              onClick={handlers[tool]}
-              aria-label={TOOL_CONFIG[tool].label}
-              title={TOOL_CONFIG[tool].label}
+              onClick={syncHandlers[tool]}
+              aria-label={SYNC_TOOL_CONFIG[tool].label}
+              title={SYNC_TOOL_CONFIG[tool].label}
               className={iconButtonClass}
             >
-              {TOOL_CONFIG[tool].icon}
+              {SYNC_TOOL_CONFIG[tool].icon}
             </button>
           ))}
       </div>
     </div>
+  );
+}
+
+type FeedbackButtonProps = {
+  icon: ReactNode;
+  label: string;
+  errorHint?: string;
+  onClick: () => Promise<boolean> | boolean;
+};
+
+/** A tool button that briefly shows a check/alert icon so a fallible clipboard action isn't silently invisible either way. */
+function FeedbackButton({ icon, label, errorHint, onClick }: FeedbackButtonProps) {
+  const [state, setState] = useState<"idle" | "success" | "error">("idle");
+
+  async function handleClick() {
+    const ok = await onClick();
+    setState(ok ? "success" : "error");
+    setTimeout(() => setState("idle"), 1800);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={label}
+      title={state === "error" ? (errorHint ?? `${label} failed`) : label}
+      className={`${iconButtonClass} ${state === "success" ? "border-emerald-500/50 text-emerald-400" : ""} ${
+        state === "error" ? "border-red-500/50 text-red-400" : ""
+      }`}
+    >
+      {state === "success" ? (
+        <Check size={16} aria-hidden="true" />
+      ) : state === "error" ? (
+        <AlertCircle size={16} aria-hidden="true" />
+      ) : (
+        icon
+      )}
+    </button>
   );
 }

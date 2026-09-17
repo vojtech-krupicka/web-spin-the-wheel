@@ -111,7 +111,9 @@ export function PresetEditDialog({ hash, mode, preset, initialNamesText, bottomB
             onCopy={() => copyToClipboard(namesText)}
             onPaste={async () => {
               const clip = await readFromClipboard();
-              if (clip) setNamesText((prev) => (prev ? `${prev}\n${clip}` : clip));
+              if (!clip) return false;
+              setNamesText((prev) => (prev ? `${prev}\n${clip}` : clip));
+              return true;
             }}
             onSort={() => setNamesText(sortNames(parseNameList(namesText)).join("\n"))}
             onDedupe={() => setNamesText(dedupeNames(parseNameList(namesText)).join("\n"))}

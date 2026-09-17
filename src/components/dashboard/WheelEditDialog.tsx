@@ -128,7 +128,9 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
             onCopy={() => copyToClipboard(namesText)}
             onPaste={async () => {
               const clip = await readFromClipboard();
-              if (clip) setNamesText((prev) => (prev ? `${prev}\n${clip}` : clip));
+              if (!clip) return false;
+              setNamesText((prev) => (prev ? `${prev}\n${clip}` : clip));
+              return true;
             }}
             onSort={() => setNamesText(sortNames(parseNameList(namesText)).join("\n"))}
             onDedupe={() => setNamesText(dedupeNames(parseNameList(namesText)).join("\n"))}
