@@ -1,10 +1,9 @@
-/** Splits textarea content into a trimmed, sorted name list. Empty lines are dropped; duplicates are kept (they encode extra odds). */
+/** Splits textarea content into a trimmed name list, preserving line order. Empty lines are dropped; duplicates are kept (they encode extra odds). */
 export function parseNameList(text: string): string[] {
   return text
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .sort((a, b) => a.localeCompare(b));
+    .filter((line) => line.length > 0);
 }
 
 export function sortNames(names: string[], direction: "asc" | "desc" = "asc"): string[] {
