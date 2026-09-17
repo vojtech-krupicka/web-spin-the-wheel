@@ -99,10 +99,10 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
 
   const mainBottomBar: { left: BottomBarSlot; right: BottomBarSlot } = winner
     ? {
-        left: { icon: <Check size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Continue", onClick: () => handleContinue(false) },
+        left: { icon: <Check size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Keep it", onClick: () => handleContinue(false) },
         right: {
           icon: <Trash2 size={22} strokeWidth={1.9} aria-hidden="true" />,
-          label: "Continue and remove",
+          label: "Remove it",
           onClick: () => handleContinue(true),
         },
       }

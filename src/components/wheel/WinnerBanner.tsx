@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatDateTime } from "@/lib/datetime";
 
 type WinnerBannerProps = {
   name: string;
@@ -33,7 +34,7 @@ export function WinnerBanner({ name, at }: WinnerBannerProps) {
       >
         {name}
       </p>
-      <p className="mt-2 text-xs text-faint">{new Date(at).toLocaleString()}</p>
+      <p className="mt-2 text-xs text-faint">{formatDateTime(at)}</p>
     </div>
   );
 }
