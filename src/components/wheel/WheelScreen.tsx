@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownAZ, ArrowLeft, ArrowUpAZ, Check, History, List, Menu, Shuffle, Trash2 } from "lucide-react";
+import { ArrowDownAZ, ArrowLeft, ArrowUpAZ, Check, History, List, Menu, Shuffle, Trash2, Trash } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomBar, type BottomBarSlot } from "@/components/layout/BottomBar";
 import { EdgePill } from "./EdgePill";
@@ -87,14 +87,17 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
     }, 500);
   }
 
-  async function handleContinue(remove: boolean) {
-    if (remove && winner) {
-      const index = currentBucket.indexOf(winner.name);
-      if (index !== -1) {
-        const next = currentBucket.filter((_, i) => i !== index);
-        const result = await updateCurrentBucketAction(wheel.id, next);
-        if (result.ok) setCurrentBucket(result.data.data.currentBucket);
+  async function handleContinue(action: "keep" | "remove-one" | "remove-all") {
+    if (action !== "keep" && winner) {
+      let next = currentBucket;
+      if (action === "remove-all") {
+        next = currentBucket.filter((n) => n !== winner.name);
+      } else {
+        const index = currentBucket.indexOf(winner.name);
+        if (index !== -1) next = currentBucket.filter((_, i) => i !== index);
       }
+      const result = await updateCurrentBucketAction(wheel.id, next);
+      if (result.ok) setCurrentBucket(result.data.data.currentBucket);
     }
     setWinner(null);
     setSpinPlan(null);
@@ -117,11 +120,11 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
 
   const mainBottomBar: { left: BottomBarSlot; right: BottomBarSlot } = winner
     ? {
-        left: { icon: <Check size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Keep it", onClick: () => handleContinue(false) },
+        left: { icon: <Check size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Keep it", onClick: () => handleContinue("keep") },
         right: {
           icon: <Trash2 size={22} strokeWidth={1.9} aria-hidden="true" />,
           label: "Remove it",
-          onClick: () => handleContinue(true),
+          onClick: () => handleContinue("remove-one"),
         },
       }
     : {
@@ -192,11 +195,22 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
 
         <BottomBar left={mainBottomBar.left} right={mainBottomBar.right} />
 
-        <SpinButton
-          disabled={busy || activeDialog !== null || currentBucket.length === 0}
-          spinning={spinning}
-          onRelease={handleSpinRelease}
-        />
+        {winner ? (
+          <button
+            type="button"
+            onClick={() => handleContinue("remove-all")}
+            className="cta-gradient absolute bottom-[-38px] left-1/2 z-[7] flex h-[168px] w-[168px] -translate-x-1/2 cursor-pointer flex-col items-center justify-center gap-1 rounded-full shadow-[0_0_0_6px_var(--bg-stop-2),0_0_34px_rgba(139,92,246,0.55)] transition-all duration-200 hover:scale-[1.03] hover:shadow-[0_0_0_6px_var(--bg-stop-2),0_0_46px_rgba(139,92,246,0.8)] active:scale-95"
+          >
+            <Trash size={30} strokeWidth={2.6} className="text-[#0a0b14]" aria-hidden="true" />
+            <span className="text-[22px] font-bold text-[#0a0b14]">Remove all</span>
+          </button>
+        ) : (
+          <SpinButton
+            disabled={busy || activeDialog !== null || currentBucket.length === 0}
+            spinning={spinning}
+            onRelease={handleSpinRelease}
+          />
+        )}
       </div>
 
       {activeDialog !== "history" && (

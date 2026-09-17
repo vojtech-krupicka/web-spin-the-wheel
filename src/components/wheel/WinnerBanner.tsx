@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatDateTime } from "@/lib/datetime";
+import { CopyButton } from "@/components/ui/CopyButton";
 
 type WinnerBannerProps = {
   name: string;
@@ -23,17 +24,20 @@ export function WinnerBanner({ name, at }: WinnerBannerProps) {
       }`}
     >
       <p className="text-xs font-bold tracking-[0.1em] text-faint uppercase">The winner is</p>
-      <p
-        className="mt-2 truncate text-3xl font-bold"
-        style={{
-          backgroundImage: "var(--gradient-accent)",
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          color: "transparent",
-        }}
-      >
-        {name}
-      </p>
+      <div className="mt-2 flex items-center justify-center gap-1.5">
+        <p
+          className="truncate text-3xl font-bold"
+          style={{
+            backgroundImage: "var(--gradient-accent)",
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            color: "transparent",
+          }}
+        >
+          {name}
+        </p>
+        <CopyButton value={name} />
+      </div>
       <p className="mt-2 text-xs text-faint">{formatDateTime(at)}</p>
     </div>
   );
