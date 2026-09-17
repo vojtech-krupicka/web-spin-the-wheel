@@ -1,0 +1,56 @@
+"use server";
+
+import { findDashboardByHash } from "@/lib/db/dashboards";
+import { copyWheel, createWheel, removeWheel, resetWheelSession, updateWheel } from "@/lib/db/wheels";
+import type { Wheel } from "@/lib/db/schema";
+import { WHEEL_CATEGORIES, findCategory } from "@/lib/categories";
+import { parseNameList } from "@/lib/nameList";
+
+type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+
+type WheelFormInput = {
+  name: string;
+  category: string;
+  namesText: string;
+};
+
+function validateWheelForm(input: WheelFormInput): { name: string; category: string; templateBucket: string[] } | { error: string } {
+  const name = input.name.trim();
+  if (!name) return { error: "Give your wheel a name." };
+  if (!findCategory(WHEEL_CATEGORIES, input.category)) return { error: "Pick a category." };
+  return { name, category: input.category, templateBucket: parseNameList(input.namesText) };
+}
+
+export async function createWheelAction(hash: string, input: WheelFormInput): Promise<ActionResult<Wheel>> {
+  const dashboard = await findDashboardByHash(hash);
+  if (!dashboard) return { ok: false, error: "Dashboard not found." };
+
+  const validated = validateWheelForm(input);
+  if ("error" in validated) return { ok: false, error: validated.error };
+
+  const wheel = await createWheel({ dashboardId: dashboard.id, ...validated });
+  return { ok: true, data: wheel };
+}
+
+export async function updateWheelAction(wheelId: number, input: WheelFormInput): Promise<ActionResult<Wheel>> {
+  const validated = validateWheelForm(input);
+  if ("error" in validated) return { ok: false, error: validated.error };
+
+  const wheel = await updateWheel({ id: wheelId, ...validated });
+  return { ok: true, data: wheel };
+}
+
+export async function removeWheelAction(wheelId: number): Promise<ActionResult> {
+  await removeWheel(wheelId);
+  return { ok: true, data: undefined };
+}
+
+export async function copyWheelAction(wheelId: number): Promise<ActionResult<Wheel>> {
+  const wheel = await copyWheel(wheelId);
+  return { ok: true, data: wheel };
+}
+
+export async function resetWheelAction(wheelId: number): Promise<ActionResult<Wheel>> {
+  const wheel = await resetWheelSession(wheelId);
+  return { ok: true, data: wheel };
+}
