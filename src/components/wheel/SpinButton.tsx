@@ -75,6 +75,7 @@ export function SpinButton({ disabled, spinning, onRelease }: SpinButtonProps) {
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      data-sound="none"
       style={style}
       className={`cta-gradient absolute bottom-[-38px] left-1/2 z-[7] flex h-[168px] w-[168px] cursor-pointer touch-none flex-col items-center justify-center gap-1 rounded-full transition-[box-shadow,transform] duration-100 disabled:cursor-not-allowed ${
         spinning

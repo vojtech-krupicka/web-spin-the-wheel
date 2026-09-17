@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CircleDashed, Disc3, GalleryHorizontal, Info, Rows3, Settings, type LucideIcon } from "lucide-react";
 import { AboutPopup } from "@/components/ui/AboutPopup";
 import { MenuItem } from "@/components/ui/MenuItem";
+import { SoundToggleRow } from "@/components/ui/SoundToggleRow";
 import { Switch } from "@/components/ui/Switch";
 import type { WheelMode, WheelVisualization } from "@/lib/db/schema";
 
@@ -77,6 +78,7 @@ export function WheelSettingsPopover({
           />
         </div>
 
+        <SoundToggleRow />
         <div className="my-1 border-t border-border" />
         <MenuItem
           icon={<Settings size={18} />}

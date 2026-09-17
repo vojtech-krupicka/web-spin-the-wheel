@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Info, Settings } from "lucide-react";
 import { AboutPopup } from "@/components/ui/AboutPopup";
 import { MenuItem } from "@/components/ui/MenuItem";
+import { SoundToggleRow } from "@/components/ui/SoundToggleRow";
 
 type SettingsPopoverProps = {
   onOpenDashboardOptions: () => void;
@@ -33,6 +34,7 @@ export function SettingsPopover({ onOpenDashboardOptions, onDismiss }: SettingsP
             onOpenDashboardOptions();
           }}
         />
+        <SoundToggleRow />
         <div className="my-1 border-t border-border" />
         <MenuItem icon={<Info size={18} />} label="About" onClick={() => setView("about")} />
       </div>
