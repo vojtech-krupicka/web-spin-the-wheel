@@ -31,8 +31,8 @@ export function LotteryBowl({ entries, spinning, plan, onSettled }: LotteryBowlP
     // eslint-disable-next-line react-hooks/set-state-in-effect -- randomized scatter layout, not derivable from props
     setPlacements(
       entries.map(() => ({
-        left: 10 + Math.random() * 80,
-        top: 12 + Math.random() * 76,
+        left: 24 + Math.random() * 52,
+        top: 26 + Math.random() * 48,
         rotate: -16 + Math.random() * 32,
       })),
     );
@@ -85,7 +85,7 @@ export function LotteryBowl({ entries, spinning, plan, onSettled }: LotteryBowlP
         return (
           <div
             key={i}
-            className="absolute rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap transition-all duration-150"
+            className="absolute max-w-[112px] truncate rounded-full border px-3 py-1 text-xs font-bold transition-all duration-150"
             style={{
               left: `${p.left}%`,
               top: `${p.top}%`,

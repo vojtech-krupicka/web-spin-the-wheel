@@ -80,7 +80,7 @@ export function WheelPie({ entries, spinning, plan, onSettled }: WheelPieProps) 
             const [x1, y1] = polarToCartesian(100, 100, 95, startAngle);
             const [x2, y2] = polarToCartesian(100, 100, 95, endAngle);
             const midAngle = startAngle + seg / 2;
-            const [lx, ly] = polarToCartesian(100, 100, 62, midAngle);
+            const [lx, ly] = polarToCartesian(100, 100, 88, midAngle);
             return (
               <g key={i}>
                 <path
@@ -95,9 +95,9 @@ export function WheelPie({ entries, spinning, plan, onSettled }: WheelPieProps) 
                   fill="#0a0b14"
                   fontSize="7.5"
                   fontWeight="700"
-                  textAnchor="middle"
+                  textAnchor="end"
                   dominantBaseline="middle"
-                  transform={`rotate(${midAngle}, ${lx}, ${ly})`}
+                  transform={`rotate(${midAngle - 90}, ${lx}, ${ly})`}
                 >
                   {truncate(name, 12)}
                 </text>
