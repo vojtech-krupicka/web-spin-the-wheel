@@ -27,7 +27,7 @@ type TextareaToolRowProps = {
 const iconButtonClass =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-panel text-muted transition hover:border-border-strong hover:text-white";
 
-/** Icon row of textarea tools — each caller wires only the tools it needs. */
+/** Icon row of textarea tools — each caller wires only the tools it needs. Load/Save-preset (when present) pin left, the rest pin right. */
 export function TextareaToolRow({
   tools,
   onCopy,
@@ -44,49 +44,48 @@ export function TextareaToolRow({
     sort: onSort,
     dedupe: onDedupe,
     clear: onClear,
-    "load-preset": onLoadPreset,
-    "save-preset": onSavePreset,
   };
+  const hasPresetTools = tools.includes("load-preset") || tools.includes("save-preset");
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1">
-      {tools.includes("load-preset") && (
-        <button
-          type="button"
-          onClick={onLoadPreset}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-accent-cyan/40 bg-accent-cyan/[0.06] px-3 text-xs font-bold text-accent-cyan transition hover:bg-accent-cyan/[0.12]"
-        >
-          <FolderOpen size={16} aria-hidden="true" />
-          Load from preset
-        </button>
+    <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
+      {hasPresetTools && (
+        <div className="flex shrink-0 items-center gap-2">
+          {tools.includes("load-preset") && (
+            <button
+              type="button"
+              onClick={onLoadPreset}
+              aria-label="Load from preset"
+              title="Load from preset"
+              className={`${iconButtonClass} border-accent-cyan/40 bg-accent-cyan/[0.06] text-accent-cyan hover:border-accent-cyan/60 hover:bg-accent-cyan/[0.12] hover:text-accent-cyan`}
+            >
+              <FolderOpen size={16} aria-hidden="true" />
+            </button>
+          )}
+          {tools.includes("save-preset") && (
+            <button type="button" onClick={onSavePreset} aria-label="Save as preset" title="Save as preset" className={iconButtonClass}>
+              <Save size={16} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       )}
-      {tools.includes("save-preset") && (
-        <button
-          type="button"
-          onClick={onSavePreset}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-panel px-3 text-xs font-bold text-muted transition hover:border-border-strong hover:text-white"
-        >
-          <Save size={16} aria-hidden="true" />
-          Save as preset
-        </button>
-      )}
-      {tools.includes("load-preset") || tools.includes("save-preset") ? (
-        <div className="h-6 w-px shrink-0 bg-border" />
-      ) : null}
-      {(Object.keys(TOOL_CONFIG) as (keyof typeof TOOL_CONFIG)[])
-        .filter((tool) => tools.includes(tool))
-        .map((tool) => (
-          <button
-            key={tool}
-            type="button"
-            onClick={handlers[tool]}
-            aria-label={TOOL_CONFIG[tool].label}
-            title={TOOL_CONFIG[tool].label}
-            className={iconButtonClass}
-          >
-            {TOOL_CONFIG[tool].icon}
-          </button>
-        ))}
+
+      <div className="flex shrink-0 items-center gap-2">
+        {(Object.keys(TOOL_CONFIG) as (keyof typeof TOOL_CONFIG)[])
+          .filter((tool) => tools.includes(tool))
+          .map((tool) => (
+            <button
+              key={tool}
+              type="button"
+              onClick={handlers[tool]}
+              aria-label={TOOL_CONFIG[tool].label}
+              title={TOOL_CONFIG[tool].label}
+              className={iconButtonClass}
+            >
+              {TOOL_CONFIG[tool].icon}
+            </button>
+          ))}
+      </div>
     </div>
   );
 }
