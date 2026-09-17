@@ -162,6 +162,7 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
           onDismiss={() => setWheelDialog(null)}
           onSaved={handleWheelSaved}
           onRemoved={handleWheelRemoved}
+          onReset={handleWheelSaved}
         />
       )}
 

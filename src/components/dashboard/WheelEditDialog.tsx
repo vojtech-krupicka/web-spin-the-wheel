@@ -24,9 +24,10 @@ type WheelEditDialogProps = {
   onDismiss: () => void;
   onSaved: (wheel: Wheel) => void;
   onRemoved?: (wheelId: number) => void;
+  onReset?: (wheel: Wheel) => void;
 };
 
-export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSaved, onRemoved }: WheelEditDialogProps) {
+export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSaved, onRemoved, onReset }: WheelEditDialogProps) {
   const [name, setName] = useState(wheel?.name ?? "");
   const [category, setCategory] = useState<string | null>(wheel?.category ?? null);
   const [namesText, setNamesText] = useState(wheel?.data.templateBucket.join("\n") ?? "");
@@ -66,9 +67,10 @@ export function WheelEditDialog({ hash, mode, wheel, bottomBar, onDismiss, onSav
   async function handleReset() {
     if (!wheel) return;
     setPending(true);
-    await resetWheelAction(wheel.id);
+    const result = await resetWheelAction(wheel.id);
     setPending(false);
     setConfirmReset(false);
+    if (result.ok) onReset?.(result.data);
     onDismiss();
   }
 

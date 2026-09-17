@@ -5,15 +5,19 @@ import { Info, Settings } from "lucide-react";
 import { AboutPopup } from "@/components/ui/AboutPopup";
 import { MenuItem } from "@/components/ui/MenuItem";
 
-type SettingsPopoverProps = {
-  onOpenDashboardOptions: () => void;
+type WheelSettingsPopoverProps = {
+  onOpenWheelOptions: () => void;
   onDismiss: () => void;
 };
 
 type View = "menu" | "about";
 
-/** Dashboard-level Settings popup: Dashboard options / About. */
-export function SettingsPopover({ onOpenDashboardOptions, onDismiss }: SettingsPopoverProps) {
+/**
+ * Wheel-level Settings popup: Wheel options / About. Visualization and
+ * Force-mode switches land here once the real visualizations exist —
+ * this is intentionally the minimal version until then.
+ */
+export function WheelSettingsPopover({ onOpenWheelOptions, onDismiss }: WheelSettingsPopoverProps) {
   const [view, setView] = useState<View>("menu");
 
   if (view === "about") return <AboutPopup onDismiss={() => setView("menu")} />;
@@ -27,10 +31,10 @@ export function SettingsPopover({ onOpenDashboardOptions, onDismiss }: SettingsP
       >
         <MenuItem
           icon={<Settings size={18} />}
-          label="Dashboard options"
+          label="Wheel options"
           onClick={() => {
             onDismiss();
-            onOpenDashboardOptions();
+            onOpenWheelOptions();
           }}
         />
         <div className="my-1 border-t border-border" />

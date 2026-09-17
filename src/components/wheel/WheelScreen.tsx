@@ -1,0 +1,254 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowDownAZ, ArrowLeft, ArrowUpAZ, Check, Disc3, History, List, Menu, Shuffle, Trash2 } from "lucide-react";
+import { TopBar } from "@/components/layout/TopBar";
+import { BottomBar, type BottomBarSlot } from "@/components/layout/BottomBar";
+import { EdgePill } from "./EdgePill";
+import { HistoryDialog } from "./HistoryDialog";
+import { CurrentBucketDialog } from "./CurrentBucketDialog";
+import { WinnerBanner } from "./WinnerBanner";
+import { WheelSettingsPopover } from "./WheelSettingsPopover";
+import { VisualizationHost } from "./visualizations/VisualizationHost";
+import { WheelEditDialog } from "@/components/dashboard/WheelEditDialog";
+import { pickWinnerIndex } from "@/lib/spin/pickWinner";
+import { sortCurrentBucketAction, shuffleCurrentBucketAction, recordWinnerAction, updateCurrentBucketAction } from "@/app/d/[hash]/w/[wheelId]/actions";
+import type { Wheel, WheelSession } from "@/lib/db/schema";
+
+type WheelScreenProps = {
+  hash: string;
+  wheel: Wheel;
+};
+
+type ActiveDialog = "history" | "current-bucket" | null;
+type Winner = { name: string; at: string };
+
+export function WheelScreen({ hash, wheel }: WheelScreenProps) {
+  const router = useRouter();
+  const [name, setName] = useState(wheel.name);
+  const [currentBucket, setCurrentBucket] = useState(wheel.data.currentBucket);
+  const [historyBucket, setHistoryBucket] = useState<WheelSession[]>(wheel.data.historyBucket);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+  const [pendingWinner, setPendingWinner] = useState<string | null>(null);
+  const [winner, setWinner] = useState<Winner | null>(null);
+
+  const busy = spinning || winner !== null;
+
+  async function handleSort() {
+    const nextDirection = sortDirection === "asc" ? "desc" : "asc";
+    const result = await sortCurrentBucketAction(wheel.id, nextDirection);
+    if (result.ok) {
+      setCurrentBucket(result.data.data.currentBucket);
+      setSortDirection(nextDirection);
+    }
+  }
+
+  async function handleShuffle() {
+    const result = await shuffleCurrentBucketAction(wheel.id);
+    if (result.ok) setCurrentBucket(result.data.data.currentBucket);
+  }
+
+  function handleSpin() {
+    if (busy || activeDialog || currentBucket.length === 0) return;
+    const index = pickWinnerIndex(currentBucket);
+    setPendingWinner(currentBucket[index]);
+    setSpinning(true);
+  }
+
+  async function handleSettled() {
+    const winningName = pendingWinner;
+    if (!winningName) return;
+    setSpinning(false);
+
+    const result = await recordWinnerAction(wheel.id, winningName);
+    if (!result.ok) {
+      setPendingWinner(null);
+      return;
+    }
+    setHistoryBucket(result.data.data.historyBucket);
+    const lastSession = result.data.data.historyBucket[result.data.data.historyBucket.length - 1];
+    const lastWinner = lastSession?.winners[lastSession.winners.length - 1];
+
+    setTimeout(() => {
+      setWinner({ name: winningName, at: lastWinner?.at ?? new Date().toISOString() });
+    }, 500);
+  }
+
+  async function handleContinue(remove: boolean) {
+    if (remove && winner) {
+      const index = currentBucket.indexOf(winner.name);
+      if (index !== -1) {
+        const next = currentBucket.filter((_, i) => i !== index);
+        const result = await updateCurrentBucketAction(wheel.id, next);
+        if (result.ok) setCurrentBucket(result.data.data.currentBucket);
+      }
+    }
+    setWinner(null);
+    setPendingWinner(null);
+  }
+
+  const dialogBottomBar = {
+    left: { icon: sortIcon(sortDirection), label: "Sort names", disabled: true },
+    right: { icon: <Shuffle size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Shuffle names", disabled: true },
+  };
+
+  const mainBottomBar: { left: BottomBarSlot; right: BottomBarSlot } = winner
+    ? {
+        left: { icon: <Check size={22} strokeWidth={1.9} aria-hidden="true" />, label: "Continue", onClick: () => handleContinue(false) },
+        right: {
+          icon: <Trash2 size={22} strokeWidth={1.9} aria-hidden="true" />,
+          label: "Continue and remove",
+          onClick: () => handleContinue(true),
+        },
+      }
+    : {
+        left: { icon: sortIcon(sortDirection), label: "Sort names", onClick: handleSort, disabled: busy },
+        right: {
+          icon: <Shuffle size={22} strokeWidth={1.9} aria-hidden="true" />,
+          label: "Shuffle names",
+          onClick: handleShuffle,
+          disabled: busy,
+        },
+      };
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <TopBar
+        left={
+          <button
+            type="button"
+            onClick={() => router.push(`/d/${hash}`)}
+            aria-label="Back"
+            className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-border bg-white/[0.06] text-[#cbd5e1] transition hover:bg-white/10"
+          >
+            <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
+        }
+        center={
+          <button type="button" onClick={() => setEditOpen(true)} className="truncate text-sm font-bold">
+            {name}
+          </button>
+        }
+        right={
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Settings"
+              className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-border bg-white/[0.06] text-[#cbd5e1] transition hover:bg-white/10"
+            >
+              <Menu size={15} strokeWidth={2} aria-hidden="true" />
+            </button>
+            {settingsOpen && (
+              <WheelSettingsPopover onOpenWheelOptions={() => setEditOpen(true)} onDismiss={() => setSettingsOpen(false)} />
+            )}
+          </div>
+        }
+      />
+
+      <div className="relative mx-4 mt-[18px] flex-1">
+        <div className="absolute inset-0 overflow-hidden rounded-[20px] border border-border bg-panel-inset">
+          <div className={`h-full transition-all ${winner ? "scale-[0.98] opacity-40 blur-sm" : ""}`}>
+            <VisualizationHost
+              visualization={wheel.data.visualization}
+              entries={currentBucket}
+              spinning={spinning}
+              targetName={pendingWinner}
+              onSettled={handleSettled}
+            />
+          </div>
+          {winner && <WinnerBanner name={winner.name} at={winner.at} />}
+        </div>
+
+        <BottomBar left={mainBottomBar.left} right={mainBottomBar.right} />
+
+        <button
+          type="button"
+          disabled={busy || activeDialog !== null || currentBucket.length === 0}
+          onClick={handleSpin}
+          className={`cta-gradient absolute bottom-[-38px] left-1/2 z-[7] flex h-[168px] w-[168px] -translate-x-1/2 cursor-pointer flex-col items-center justify-center gap-1 rounded-full transition-all duration-200 active:scale-95 disabled:cursor-not-allowed ${
+            spinning
+              ? "animate-pulse shadow-[0_0_0_6px_var(--bg-stop-2),0_0_44px_rgba(139,92,246,0.75)]"
+              : busy || activeDialog !== null || currentBucket.length === 0
+                ? "shadow-[0_0_0_6px_var(--bg-stop-2)] grayscale"
+                : "shadow-[0_0_0_6px_var(--bg-stop-2),0_0_34px_rgba(139,92,246,0.55)] hover:scale-[1.03] hover:shadow-[0_0_0_6px_var(--bg-stop-2),0_0_46px_rgba(139,92,246,0.8)]"
+          }`}
+        >
+          <Disc3 size={30} strokeWidth={2.6} className={`text-[#0a0b14] ${spinning ? "animate-spin" : ""}`} aria-hidden="true" />
+          <span className={`font-bold text-[#0a0b14] ${spinning ? "text-[22px]" : "text-[28px]"}`}>
+            {spinning ? "Spinning" : "Spin"}
+          </span>
+        </button>
+      </div>
+
+      {activeDialog !== "history" && (
+        <EdgePill
+          side="left"
+          icon={<History size={18} aria-hidden="true" />}
+          label="History"
+          onClick={() => setActiveDialog("history")}
+          disabled={busy}
+        />
+      )}
+      {activeDialog !== "current-bucket" && (
+        <EdgePill
+          side="right"
+          icon={<List size={18} aria-hidden="true" />}
+          label="Current list"
+          onClick={() => setActiveDialog("current-bucket")}
+          disabled={busy}
+        />
+      )}
+
+      {activeDialog === "history" && (
+        <HistoryDialog sessions={historyBucket} bottomBar={dialogBottomBar} onDismiss={() => setActiveDialog(null)} />
+      )}
+
+      {activeDialog === "current-bucket" && (
+        <CurrentBucketDialog
+          hash={hash}
+          wheelId={wheel.id}
+          names={currentBucket}
+          bottomBar={dialogBottomBar}
+          onDismiss={() => setActiveDialog(null)}
+          onSaved={(names) => {
+            setCurrentBucket(names);
+            setActiveDialog(null);
+          }}
+        />
+      )}
+
+      {editOpen && (
+        <WheelEditDialog
+          hash={hash}
+          mode="edit"
+          wheel={{ ...wheel, name, data: { ...wheel.data, currentBucket, historyBucket } }}
+          bottomBar={dialogBottomBar}
+          onDismiss={() => setEditOpen(false)}
+          onSaved={(updated) => {
+            setName(updated.name);
+            setEditOpen(false);
+          }}
+          onRemoved={() => router.push(`/d/${hash}`)}
+          onReset={(updated) => {
+            setCurrentBucket(updated.data.currentBucket);
+            setHistoryBucket(updated.data.historyBucket);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function sortIcon(direction: "asc" | "desc") {
+  return direction === "asc" ? (
+    <ArrowDownAZ size={22} strokeWidth={1.9} aria-hidden="true" />
+  ) : (
+    <ArrowUpAZ size={22} strokeWidth={1.9} aria-hidden="true" />
+  );
+}

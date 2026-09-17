@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "./index";
 import { wheels, type Wheel, type WheelData } from "./schema";
+import { shuffleNames, sortNames } from "@/lib/nameList";
 
 export function listWheelsForDashboard(dashboardId: number): Promise<Wheel[]> {
   return db.query.wheels.findMany({
@@ -110,4 +111,40 @@ export async function updateWheelData(id: number, data: WheelData): Promise<Whee
     .where(eq(wheels.id, id))
     .returning();
   return updated;
+}
+
+export async function sortWheelCurrentBucket(id: number, direction: "asc" | "desc"): Promise<Wheel> {
+  const existing = await findWheelById(id);
+  if (!existing) throw new Error("Wheel not found.");
+  return updateWheelData(id, { ...existing.data, currentBucket: sortNames(existing.data.currentBucket, direction) });
+}
+
+export async function shuffleWheelCurrentBucket(id: number): Promise<Wheel> {
+  const existing = await findWheelById(id);
+  if (!existing) throw new Error("Wheel not found.");
+  return updateWheelData(id, { ...existing.data, currentBucket: shuffleNames(existing.data.currentBucket) });
+}
+
+export async function updateWheelCurrentBucket(id: number, currentBucket: string[]): Promise<Wheel> {
+  const existing = await findWheelById(id);
+  if (!existing) throw new Error("Wheel not found.");
+  return updateWheelData(id, { ...existing.data, currentBucket });
+}
+
+/** Appends a winner to the most recently started session. */
+export async function appendWheelWinner(id: number, name: string): Promise<Wheel> {
+  const existing = await findWheelById(id);
+  if (!existing) throw new Error("Wheel not found.");
+
+  const historyBucket = [...existing.data.historyBucket];
+  const lastIndex = historyBucket.length - 1;
+  if (lastIndex < 0) throw new Error("No active session.");
+
+  const lastSession = historyBucket[lastIndex];
+  historyBucket[lastIndex] = {
+    ...lastSession,
+    winners: [...lastSession.winners, { name, at: new Date().toISOString() }],
+  };
+
+  return updateWheelData(id, { ...existing.data, historyBucket });
 }
