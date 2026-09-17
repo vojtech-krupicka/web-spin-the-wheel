@@ -23,10 +23,10 @@ type PresetListRowProps = {
 export function PresetListRow({ hash, preset, listType, mode, selected, onToggleSelect, onEdit, onChanged }: PresetListRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirmCopy, setConfirmCopy] = useState(false);
   const category = findCategory(PRESET_CATEGORIES, preset.category);
 
   async function handleCopy() {
-    setMenuOpen(false);
     await copyPresetAction(hash, preset.id);
     onChanged?.();
   }
@@ -84,7 +84,14 @@ export function PresetListRow({ hash, preset, listType, mode, selected, onToggle
                     }}
                   />
                 )}
-                <MenuItem icon={<Copy size={15} aria-hidden="true" />} label="Copy" onClick={handleCopy} />
+                <MenuItem
+                  icon={<Copy size={15} aria-hidden="true" />}
+                  label="Copy"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmCopy(true);
+                  }}
+                />
                 {listType === "private" && (
                   <MenuItem
                     icon={<Trash2 size={15} aria-hidden="true" />}
@@ -110,6 +117,18 @@ export function PresetListRow({ hash, preset, listType, mode, selected, onToggle
           danger
           onConfirm={handleRemove}
           onCancel={() => setConfirmRemove(false)}
+        />
+      )}
+      {confirmCopy && (
+        <ConfirmDialog
+          title="Copy preset?"
+          message={`Creates a private duplicate named "${preset.name} - copy".`}
+          confirmLabel="Copy"
+          onConfirm={() => {
+            setConfirmCopy(false);
+            handleCopy();
+          }}
+          onCancel={() => setConfirmCopy(false)}
         />
       )}
     </div>
