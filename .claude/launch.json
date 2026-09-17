@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "C:\\Users\\voker\\03-programming\\github\\voker\\web-spin-the-wheel\\.claude\\dev.cmd"],
+      "port": 3000
+    }
+  ]
+}
