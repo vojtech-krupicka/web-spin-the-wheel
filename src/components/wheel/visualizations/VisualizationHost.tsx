@@ -1,21 +1,30 @@
 "use client";
 
-import { SimpleReel } from "./SimpleReel";
+import { LotteryBowl } from "./LotteryBowl";
+import { Carousel } from "./Carousel";
+import { Cylinder } from "./Cylinder";
+import { WheelPie } from "./WheelPie";
+import type { SpinPlan } from "@/lib/spin/forceEngine";
 import type { WheelVisualization } from "@/lib/db/schema";
 
 type VisualizationHostProps = {
   visualization: WheelVisualization;
   entries: string[];
   spinning: boolean;
-  targetName: string | null;
+  plan: SpinPlan | null;
   onSettled: () => void;
 };
 
-/**
- * Dispatches on the wheel's chosen visualization. Only the placeholder
- * reel exists so far — bowl/carousel/cylinder/wheel all render it too until
- * each is built, at which point this switches on `visualization` for real.
- */
-export function VisualizationHost({ entries, spinning, targetName, onSettled }: VisualizationHostProps) {
-  return <SimpleReel entries={entries} spinning={spinning} targetName={targetName} onSettled={onSettled} />;
+/** Dispatches on the wheel's chosen visualization. */
+export function VisualizationHost({ visualization, entries, spinning, plan, onSettled }: VisualizationHostProps) {
+  switch (visualization) {
+    case "bowl":
+      return <LotteryBowl entries={entries} spinning={spinning} plan={plan} onSettled={onSettled} />;
+    case "carousel":
+      return <Carousel entries={entries} spinning={spinning} plan={plan} onSettled={onSettled} />;
+    case "cylinder":
+      return <Cylinder entries={entries} spinning={spinning} plan={plan} onSettled={onSettled} />;
+    case "wheel":
+      return <WheelPie entries={entries} spinning={spinning} plan={plan} onSettled={onSettled} />;
+  }
 }

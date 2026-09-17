@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownAZ, ArrowLeft, ArrowUpAZ, Check, Disc3, History, List, Menu, Shuffle, Trash2 } from "lucide-react";
+import { ArrowDownAZ, ArrowLeft, ArrowUpAZ, Check, History, List, Menu, Shuffle, Trash2 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomBar, type BottomBarSlot } from "@/components/layout/BottomBar";
 import { EdgePill } from "./EdgePill";
@@ -10,11 +10,18 @@ import { HistoryDialog } from "./HistoryDialog";
 import { CurrentBucketDialog } from "./CurrentBucketDialog";
 import { WinnerBanner } from "./WinnerBanner";
 import { WheelSettingsPopover } from "./WheelSettingsPopover";
+import { SpinButton } from "./SpinButton";
 import { VisualizationHost } from "./visualizations/VisualizationHost";
 import { WheelEditDialog } from "@/components/dashboard/WheelEditDialog";
-import { pickWinnerIndex } from "@/lib/spin/pickWinner";
-import { sortCurrentBucketAction, shuffleCurrentBucketAction, recordWinnerAction, updateCurrentBucketAction } from "@/app/d/[hash]/w/[wheelId]/actions";
-import type { Wheel, WheelSession } from "@/lib/db/schema";
+import { planSpin, type SpinPlan } from "@/lib/spin/forceEngine";
+import {
+  sortCurrentBucketAction,
+  shuffleCurrentBucketAction,
+  recordWinnerAction,
+  updateCurrentBucketAction,
+  updateWheelSettingsAction,
+} from "@/app/d/[hash]/w/[wheelId]/actions";
+import type { Wheel, WheelMode, WheelSession, WheelVisualization } from "@/lib/db/schema";
 
 type WheelScreenProps = {
   hash: string;
@@ -29,12 +36,14 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
   const [name, setName] = useState(wheel.name);
   const [currentBucket, setCurrentBucket] = useState(wheel.data.currentBucket);
   const [historyBucket, setHistoryBucket] = useState<WheelSession[]>(wheel.data.historyBucket);
+  const [visualization, setVisualization] = useState<WheelVisualization>(wheel.data.visualization);
+  const [mode, setMode] = useState<WheelMode>(wheel.data.mode);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [spinning, setSpinning] = useState(false);
-  const [pendingWinner, setPendingWinner] = useState<string | null>(null);
+  const [spinPlan, setSpinPlan] = useState<SpinPlan | null>(null);
   const [winner, setWinner] = useState<Winner | null>(null);
 
   const busy = spinning || winner !== null;
@@ -53,21 +62,20 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
     if (result.ok) setCurrentBucket(result.data.data.currentBucket);
   }
 
-  function handleSpin() {
+  function handleSpinRelease(holdMs: number) {
     if (busy || activeDialog || currentBucket.length === 0) return;
-    const index = pickWinnerIndex(currentBucket);
-    setPendingWinner(currentBucket[index]);
+    setSpinPlan(planSpin(mode, currentBucket, holdMs));
     setSpinning(true);
   }
 
   async function handleSettled() {
-    const winningName = pendingWinner;
-    if (!winningName) return;
+    if (!spinPlan) return;
+    const winningName = currentBucket[spinPlan.winnerIndex];
     setSpinning(false);
 
     const result = await recordWinnerAction(wheel.id, winningName);
     if (!result.ok) {
-      setPendingWinner(null);
+      setSpinPlan(null);
       return;
     }
     setHistoryBucket(result.data.data.historyBucket);
@@ -89,7 +97,17 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
       }
     }
     setWinner(null);
-    setPendingWinner(null);
+    setSpinPlan(null);
+  }
+
+  async function handleVisualizationChange(next: WheelVisualization) {
+    setVisualization(next);
+    await updateWheelSettingsAction(wheel.id, { visualization: next });
+  }
+
+  async function handleModeChange(next: WheelMode) {
+    setMode(next);
+    await updateWheelSettingsAction(wheel.id, { mode: next });
   }
 
   const dialogBottomBar = {
@@ -145,7 +163,14 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
               <Menu size={15} strokeWidth={2} aria-hidden="true" />
             </button>
             {settingsOpen && (
-              <WheelSettingsPopover onOpenWheelOptions={() => setEditOpen(true)} onDismiss={() => setSettingsOpen(false)} />
+              <WheelSettingsPopover
+                visualization={visualization}
+                onVisualizationChange={handleVisualizationChange}
+                mode={mode}
+                onModeChange={handleModeChange}
+                onOpenWheelOptions={() => setEditOpen(true)}
+                onDismiss={() => setSettingsOpen(false)}
+              />
             )}
           </div>
         }
@@ -155,10 +180,10 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
         <div className="absolute inset-0 overflow-hidden rounded-[20px] border border-border bg-panel-inset">
           <div className={`h-full transition-all ${winner ? "scale-[0.98] opacity-40 blur-sm" : ""}`}>
             <VisualizationHost
-              visualization={wheel.data.visualization}
+              visualization={visualization}
               entries={currentBucket}
               spinning={spinning}
-              targetName={pendingWinner}
+              plan={spinPlan}
               onSettled={handleSettled}
             />
           </div>
@@ -167,23 +192,11 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
 
         <BottomBar left={mainBottomBar.left} right={mainBottomBar.right} />
 
-        <button
-          type="button"
+        <SpinButton
           disabled={busy || activeDialog !== null || currentBucket.length === 0}
-          onClick={handleSpin}
-          className={`cta-gradient absolute bottom-[-38px] left-1/2 z-[7] flex h-[168px] w-[168px] -translate-x-1/2 cursor-pointer flex-col items-center justify-center gap-1 rounded-full transition-all duration-200 active:scale-95 disabled:cursor-not-allowed ${
-            spinning
-              ? "animate-pulse shadow-[0_0_0_6px_var(--bg-stop-2),0_0_44px_rgba(139,92,246,0.75)]"
-              : busy || activeDialog !== null || currentBucket.length === 0
-                ? "shadow-[0_0_0_6px_var(--bg-stop-2)] grayscale"
-                : "shadow-[0_0_0_6px_var(--bg-stop-2),0_0_34px_rgba(139,92,246,0.55)] hover:scale-[1.03] hover:shadow-[0_0_0_6px_var(--bg-stop-2),0_0_46px_rgba(139,92,246,0.8)]"
-          }`}
-        >
-          <Disc3 size={30} strokeWidth={2.6} className={`text-[#0a0b14] ${spinning ? "animate-spin" : ""}`} aria-hidden="true" />
-          <span className={`font-bold text-[#0a0b14] ${spinning ? "text-[22px]" : "text-[28px]"}`}>
-            {spinning ? "Spinning" : "Spin"}
-          </span>
-        </button>
+          spinning={spinning}
+          onRelease={handleSpinRelease}
+        />
       </div>
 
       {activeDialog !== "history" && (
@@ -227,7 +240,7 @@ export function WheelScreen({ hash, wheel }: WheelScreenProps) {
         <WheelEditDialog
           hash={hash}
           mode="edit"
-          wheel={{ ...wheel, name, data: { ...wheel.data, currentBucket, historyBucket } }}
+          wheel={{ ...wheel, name, data: { ...wheel.data, currentBucket, historyBucket, visualization, mode } }}
           bottomBar={dialogBottomBar}
           onDismiss={() => setEditOpen(false)}
           onSaved={(updated) => {

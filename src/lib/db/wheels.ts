@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "./index";
-import { wheels, type Wheel, type WheelData } from "./schema";
+import { wheels, type Wheel, type WheelData, type WheelMode, type WheelVisualization } from "./schema";
 import { shuffleNames, sortNames } from "@/lib/nameList";
 
 export function listWheelsForDashboard(dashboardId: number): Promise<Wheel[]> {
@@ -129,6 +129,15 @@ export async function updateWheelCurrentBucket(id: number, currentBucket: string
   const existing = await findWheelById(id);
   if (!existing) throw new Error("Wheel not found.");
   return updateWheelData(id, { ...existing.data, currentBucket });
+}
+
+export async function updateWheelVisualizationAndMode(
+  id: number,
+  updates: { visualization?: WheelVisualization; mode?: WheelMode },
+): Promise<Wheel> {
+  const existing = await findWheelById(id);
+  if (!existing) throw new Error("Wheel not found.");
+  return updateWheelData(id, { ...existing.data, ...updates });
 }
 
 /** Appends a winner to the most recently started session. */
