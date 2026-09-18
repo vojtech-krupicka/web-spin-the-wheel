@@ -120,8 +120,10 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
               <WheelsList
                 hash={hash}
                 wheels={wheels}
+                bottomBar={dialogBottomBar}
                 onEdit={(wheel) => setWheelDialog({ mode: "edit", wheel })}
                 onCopied={handleWheelCopied}
+                onReset={handleWheelSaved}
                 onRemoved={handleWheelRemoved}
               />
             ) : (

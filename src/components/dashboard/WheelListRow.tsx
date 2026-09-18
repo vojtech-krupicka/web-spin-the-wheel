@@ -4,6 +4,8 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import type { BottomBarSlot } from "@/components/layout/BottomBar";
+import { WheelViewDialog } from "./WheelViewDialog";
 import { findCategory, WHEEL_CATEGORIES } from "@/lib/categories";
 import { copyWheelAction, removeWheelAction } from "@/app/d/[hash]/actions";
 import type { Wheel } from "@/lib/db/schema";
@@ -11,15 +13,18 @@ import type { Wheel } from "@/lib/db/schema";
 type WheelListRowProps = {
   hash: string;
   wheel: Wheel;
+  bottomBar: { left: BottomBarSlot; right: BottomBarSlot };
   onEdit: (wheel: Wheel) => void;
   onCopied: (wheel: Wheel) => void;
+  onReset: (wheel: Wheel) => void;
   onRemoved: (wheelId: number) => void;
 };
 
-export function WheelListRow({ hash, wheel, onEdit, onCopied, onRemoved }: WheelListRowProps) {
+export function WheelListRow({ hash, wheel, bottomBar, onEdit, onCopied, onReset, onRemoved }: WheelListRowProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [viewBucket, setViewBucket] = useState<"current" | "template" | null>(null);
   const category = findCategory(WHEEL_CATEGORIES, wheel.category);
 
   async function handleCopy() {
@@ -55,7 +60,25 @@ export function WheelListRow({ hash, wheel, onEdit, onCopied, onRemoved }: Wheel
         )}
         <div className="truncate text-[15px] font-bold">{wheel.name}</div>
       </button>
-      <span className="shrink-0 text-sm font-semibold text-muted">{wheel.data.currentBucket.length}</span>
+      <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-muted">
+        <button
+          type="button"
+          onClick={() => setViewBucket("current")}
+          aria-label={`View ${wheel.name}'s current list`}
+          className="rounded-lg px-1 py-1 underline decoration-dotted underline-offset-4 transition hover:text-white"
+        >
+          {wheel.data.currentBucket.length}
+        </button>
+        <span aria-hidden="true">/</span>
+        <button
+          type="button"
+          onClick={() => setViewBucket("template")}
+          aria-label={`View ${wheel.name}'s template`}
+          className="rounded-lg px-1 py-1 underline decoration-dotted underline-offset-4 transition hover:text-white"
+        >
+          {wheel.data.templateBucket.length}
+        </button>
+      </div>
       <div className="relative shrink-0">
         <button
           type="button"
@@ -100,6 +123,19 @@ export function WheelListRow({ hash, wheel, onEdit, onCopied, onRemoved }: Wheel
           danger
           onConfirm={handleRemove}
           onCancel={() => setConfirmRemove(false)}
+        />
+      )}
+
+      {viewBucket && (
+        <WheelViewDialog
+          wheel={wheel}
+          bucket={viewBucket}
+          bottomBar={bottomBar}
+          onDismiss={() => setViewBucket(null)}
+          onEdit={onEdit}
+          onCopied={onCopied}
+          onReset={onReset}
+          onRemoved={onRemoved}
         />
       )}
     </div>
