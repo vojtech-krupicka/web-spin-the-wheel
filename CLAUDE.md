@@ -2,16 +2,16 @@
 
 # web-spin-the-wheel — project context
 
-A mobile-friendly random-winner picker — pick one name out of a list via a lottery-bowl draw or a spinning wheel/carousel/cylinder — built as a sibling app to [web-roll-the-dice](../web-roll-the-dice), deliberately cloning its stack, "Midnight Arcade" theme, and access model. Developed directly on `dev`, no PR to `main` yet — see "Release workflow" below.
+A mobile-friendly random-winner picker — pick one name out of a list via a lottery-bowl draw or a spinning wheel/carousel/cylinder — built as a sibling app to [web-roll-the-dice](../web-roll-the-dice), deliberately cloning its stack, "Midnight Arcade" theme, and access model. Developed directly on `dev`; `main` is production — see "Release workflow" below.
 
 ## Confirmed architecture
 
-- **Framework:** Next.js 16 (App Router, TypeScript). Not yet deployed — will go to Vercel once a PR lands on `main` (see Roadmap).
+- **Framework:** Next.js 16 (App Router, TypeScript), deployed to Vercel (live since v1.0.0, 2026-09-18).
 - **Styling:** Tailwind CSS v4, dark-only "Midnight Arcade" palette — copied verbatim from Roll the Dice's `globals.css` (near-black radial-gradient background, cyan→violet gradient accents, Space Grotesk/Space Mono fonts), same `@theme` token setup, same `prefers-reduced-motion` blanket flattening.
 - **Icons:** `lucide-react`.
 - **Sound:** Web Audio API (`src/lib/sound.ts`), same architecture as Roll the Dice — real clips in `public/sounds/` with a synthesized fallback per category so the app never goes silent. Categories: `playClick` (every button, via `GlobalClickSound`'s document-level listener + `data-sound="none"` opt-out), `playVisualizationTick` (one fixed clip per visualization — `bowl.ogg`/`carousel.ogg`/`cylinder.ogg`/`wheel.ogg` — ticked repeatedly through a spin with small pitch jitter), `playWinChime` (`win-banner-chime.mp3`, once per winner reveal). Sound on/off persisted to `localStorage` (`wheel-app-muted`), toggle lives in both Settings popovers via the shared `SoundToggleRow`.
-- **Database:** Postgres via Drizzle ORM (`drizzle-orm/node-postgres` + `pg`). Local dev DB: Postgres 17 in Docker, container `wheel-db`, mapped to host port **5433** (not 5432 — Roll the Dice's own `dice-pg` already holds that). Migrations: `npm run db:generate` then `npm run db:migrate` (SQL lives in `drizzle/`).
-- **Dashboard access model:** same shape as Roll the Dice's games — a `dashboard` has a 5-character hash (unambiguous alphabet, collision-checked on create) and an optional password (bcryptjs-hashed). Home page: hash input + Join (password field appears only if protected) and Create (name + optional password/repeat). A correct password grants a signed **iron-session** cookie (`src/lib/session.ts`, cookie `wheel-session`) recording which dashboard ids this browser has unlocked; `/d/[hash]` and `/d/[hash]/w/[wheelId]` both check it server-side and redirect to `/?hash=...` if locked, or `/?error=not-found` if the hash doesn't exist.
+- **Database:** Postgres via Drizzle ORM (`drizzle-orm/node-postgres` + `pg`). Local dev DB: Postgres 17 in Docker, container `wheel-db`, mapped to host port **5433** (not 5432 — Roll the Dice's own `dice-pg` already holds that). Migrations: `npm run db:generate` then `npm run db:migrate` (SQL lives in `drizzle/`). Production runs against a **Neon** Postgres 17 project (live since v1.0.0) — same migrations applied against it with no code changes.
+- **Dashboard access model:** same shape as Roll the Dice's games — a `dashboard` has a 5-character hash (unambiguous alphabet, collision-checked on create) and an optional password (bcryptjs-hashed). Home page: hash input + Join (password field appears only if protected) and Create (name + optional password/repeat). A correct password grants a signed **iron-session** cookie (`src/lib/session.ts`, cookie `wheel-session`) recording which dashboard ids this browser has unlocked; `/d/[hash]` and `/d/[hash]/w/[wheelId]` both check it server-side and redirect to `/?hash=...` if locked, or `/?error=not-found` if the hash doesn't exist. **Every mutating/reading Server Action re-checks this too** (`src/lib/authz.ts`'s `requireDashboardAccess`/`requireWheelAccess`/`requirePresetAccess`/`requirePresetReadAccess`, built on `session.ts`'s `canAccessDashboard`) — added post-v1.0.0 after finding that Server Actions taking a bare `wheelId`/`presetId` are directly callable and were bypassing the page-level guard entirely (a real IDOR, fixed same day). Any new Server Action that takes a `wheelId`/`presetId`/`hash` must call the matching `require*Access` helper before touching the DB — this is not optional.
 - **Data model:** see `src/lib/db/schema.ts`. Three tables, no per-player/per-roll rows like Roll the Dice has — this app has no concept of players.
   - `dashboards`: id, hash, name, password_hash?, created_at, settings (jsonb, empty-shaped for now — parity placeholder, no fields yet).
   - `presets`: id, dashboard_id (FK, cascade), name, created_at, category (string id into `WHEEL_CATEGORIES`/`PRESET_CATEGORIES` — see below), data (jsonb `{ names: string[] }`), public (bool). Private list = own dashboard regardless of `public`; public list = `public = true AND dashboard_id != own` (so a dashboard's own public presets show in *its own* private list, badged, not in its own public list).
@@ -34,8 +34,10 @@ Full DB-backed dashboards/presets/wheels, all four visualizations, force mechani
 - `src/lib/db/schema.ts` / `index.ts` — Drizzle schema and the `pg`-backed client.
 - `src/lib/db/dashboards.ts`, `presets.ts`, `wheels.ts` — query functions (find/create/update/remove/copy, plus wheel-specific `sortWheelCurrentBucket`/`shuffleWheelCurrentBucket`/`updateWheelCurrentBucket`/`appendWheelWinner`/`resetWheelSession`/`updateWheelVisualizationAndMode`).
 - `src/lib/session.ts`, `src/lib/password.ts`, `src/lib/dashboardHash.ts` — iron-session helpers, bcryptjs wrappers, the 5-char hash generator (ports of Roll the Dice's, renamed).
+- `src/lib/authz.ts` — Server-Action-layer authorization (see "Dashboard access model" above); every action below calls into this before mutating or reading anything scoped to a dashboard.
 - `src/lib/nameList.ts` — textarea→names[] parsing (trim/drop-empty, **no auto-sort** — see Resolved decisions), plus `sortNames`/`dedupeNames`/`shuffleNames`.
 - `src/app/actions.ts` — dashboard-level Server Actions (check/join/create, edit/delete/leave). `src/app/d/[hash]/actions.ts` — wheel + preset CRUD scoped to a dashboard. `src/app/d/[hash]/w/[wheelId]/actions.ts` — sort/shuffle/update-current-bucket/record-winner/update-visualization-and-mode. All follow the same `ActionResult<T> = {ok:true,data} | {ok:false,error}` pattern as Roll the Dice.
+- `src/lib/version.ts` — `APP_VERSION`, bumped by hand at release time (see Release workflow), shown in `AboutPopup`.
 
 **Home page** (`src/app/page.tsx` + `src/components/home/`) — `JoinForm`/`CreateDashboardPane`, direct ports of Roll the Dice's `JoinForm`/`CreateGamePane`. Footer tagline is `src/lib/quotes.ts`'s `randomQuote()`, picked client-side after mount (not during the SSR pass, to avoid a hydration mismatch — `useState(QUOTES[0])` then swapped in a `useEffect`).
 
@@ -74,11 +76,15 @@ Same as Roll the Dice's, plus:
 
 ## Release workflow
 
-Not yet deployed. Plan (once the user says so): push `dev` to the GitHub remote, open a PR into `main`, set up a Neon Postgres project and Vercel deployment (mirroring Roll the Dice's `main`-is-production / Vercel-auto-deploys setup), apply migrations against Neon. No version scheme decided yet — likely semantic versioning from the first release, same as Roll the Dice adopted at its v1.0.0.
+`main` is production — Vercel auto-deploys every push to it, so nothing is committed to it directly anymore (branch protection on `main` requires a PR; no direct pushes, no required approvals since this is a solo repo). Instead: do all work on `dev`, get it tested there — Vercel gives every branch/PR its own preview deployment automatically, no config needed. When it's ready to ship, still on `dev`: update CHANGELOG.md (move `[Unreleased]` under a new dated version heading) and this file if anything architectural changed, and bump the version in lockstep in `package.json` and `src/lib/version.ts`'s `APP_VERSION`. Open the PR into `main`; once merged (squash), tag `vX.Y.Z` (annotated, on `main`) and push the tag, then draft a GitHub Release from that tag. Bump **patch** for fixes, **minor** for new features, **major** for breaking changes or a significant redesign — same scheme Roll the Dice uses.
 
-## Roadmap (not yet built)
+A squash merge means `main` and `dev` diverge in commit hash even though content matches — after each merge, sync `dev` by merging `main` back into it (`git checkout dev && git merge main`) before starting new work, rather than resetting/force-pushing `dev`.
 
-- Deployment (GitHub push, PR to `main`, Vercel + Neon) — pending the user's go-ahead.
+If schema changes are part of a release: apply the migration against the **Neon** production database (`npm run db:migrate` with `DATABASE_URL` pointed at Neon, not the local Docker DB) — do this once, from a machine with network access to Neon, not tied to the Vercel deploy itself.
+
+## Roadmap
+
+Nothing currently planned — v1.0.0 is live on Vercel + Neon.
 
 ## Resolved decisions
 
@@ -88,3 +94,4 @@ Not yet deployed. Plan (once the user says so): push `dev` to the GitHub remote,
 - **`bg-clip-text` (Tailwind utility) doesn't render** in this project's Tailwind v4 setup — root cause not fully diagnosed (compiled CSS simply didn't include the rule). `WinnerBanner`'s gradient name text uses an inline `style` object instead. If a future gradient-text need comes up elsewhere, reach for the same inline-style approach rather than re-attempting the utility class.
 - **`PresetFilterSortBar` is two rows, not one.** A single `flex flex-wrap` row (category select, name filter, sort select, direction toggle) squeezed the name filter input down to a sliver at ~375px width, cutting off its placeholder. Fixed by giving the name filter its own full-width row, with the three narrower controls sharing the row below — found and fixed during a dedicated mobile-viewport (375×812) pass across every screen, which otherwise turned up no other layout issues.
 - **Shared `HelpPopup`** (`src/components/ui/HelpPopup.tsx`), not two separate ones. Covers dashboards/presets/wheels/spinning/after-a-spin in one set of sections, opened identically from both the dashboard and wheel Settings popovers — mirrors how `AboutPopup` is already shared, avoids fragmenting help content by entry point.
+- **`AboutPopup` mirrors Roll the Dice's full layout** — version number, "View source on GitHub"/"What's new" links, and a Buy Me a Coffee button — confirmed with the user at v1.0.0 rather than assumed; not just the shortened description-only version that existed pre-release.
