@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Info, Settings } from "lucide-react";
+import { HelpCircle, Info, Settings } from "lucide-react";
 import { AboutPopup } from "@/components/ui/AboutPopup";
+import { HelpPopup } from "@/components/ui/HelpPopup";
 import { MenuItem } from "@/components/ui/MenuItem";
 import { SoundToggleRow } from "@/components/ui/SoundToggleRow";
 
@@ -11,12 +12,13 @@ type SettingsPopoverProps = {
   onDismiss: () => void;
 };
 
-type View = "menu" | "about";
+type View = "menu" | "help" | "about";
 
-/** Dashboard-level Settings popup: Dashboard options / About. */
+/** Dashboard-level Settings popup: Dashboard options / Sound / Help / About. */
 export function SettingsPopover({ onOpenDashboardOptions, onDismiss }: SettingsPopoverProps) {
   const [view, setView] = useState<View>("menu");
 
+  if (view === "help") return <HelpPopup onDismiss={() => setView("menu")} />;
   if (view === "about") return <AboutPopup onDismiss={() => setView("menu")} />;
 
   return (
@@ -36,6 +38,7 @@ export function SettingsPopover({ onOpenDashboardOptions, onDismiss }: SettingsP
         />
         <SoundToggleRow />
         <div className="my-1 border-t border-border" />
+        <MenuItem icon={<HelpCircle size={18} />} label="Help" onClick={() => setView("help")} />
         <MenuItem icon={<Info size={18} />} label="About" onClick={() => setView("about")} />
       </div>
     </>

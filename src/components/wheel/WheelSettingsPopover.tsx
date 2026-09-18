@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CircleDashed, Disc3, GalleryHorizontal, Info, Rows3, Settings, type LucideIcon } from "lucide-react";
+import { CircleDashed, Disc3, GalleryHorizontal, HelpCircle, Info, Rows3, Settings, type LucideIcon } from "lucide-react";
 import { AboutPopup } from "@/components/ui/AboutPopup";
+import { HelpPopup } from "@/components/ui/HelpPopup";
 import { MenuItem } from "@/components/ui/MenuItem";
 import { SoundToggleRow } from "@/components/ui/SoundToggleRow";
 import { Switch } from "@/components/ui/Switch";
@@ -17,7 +18,7 @@ type WheelSettingsPopoverProps = {
   onDismiss: () => void;
 };
 
-type View = "menu" | "about";
+type View = "menu" | "help" | "about";
 
 const VISUALIZATIONS: { id: WheelVisualization; label: string; icon: LucideIcon }[] = [
   { id: "bowl", label: "Lottery bowl", icon: CircleDashed },
@@ -37,6 +38,7 @@ export function WheelSettingsPopover({
 }: WheelSettingsPopoverProps) {
   const [view, setView] = useState<View>("menu");
 
+  if (view === "help") return <HelpPopup onDismiss={() => setView("menu")} />;
   if (view === "about") return <AboutPopup onDismiss={() => setView("menu")} />;
 
   return (
@@ -89,6 +91,7 @@ export function WheelSettingsPopover({
           }}
         />
         <div className="my-1 border-t border-border" />
+        <MenuItem icon={<HelpCircle size={18} />} label="Help" onClick={() => setView("help")} />
         <MenuItem icon={<Info size={18} />} label="About" onClick={() => setView("about")} />
       </div>
     </>
