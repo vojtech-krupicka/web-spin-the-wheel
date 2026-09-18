@@ -29,6 +29,12 @@ export async function isDashboardUnlocked(dashboardId: number): Promise<boolean>
   return session.unlockedDashboardIds!.includes(dashboardId);
 }
 
+/** Password-less dashboards are accessible to anyone with the hash; protected ones need an unlocked session. */
+export async function canAccessDashboard(dashboard: { id: number; passwordHash: string | null }): Promise<boolean> {
+  if (!dashboard.passwordHash) return true;
+  return isDashboardUnlocked(dashboard.id);
+}
+
 export async function unlockDashboard(dashboardId: number): Promise<void> {
   const session = await getSession();
   if (!session.unlockedDashboardIds!.includes(dashboardId)) {

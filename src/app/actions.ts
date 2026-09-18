@@ -2,7 +2,7 @@
 
 import { createDashboard, deleteDashboard, findDashboardByHash, updateDashboard } from "@/lib/db/dashboards";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { lockDashboard, unlockDashboard } from "@/lib/session";
+import { canAccessDashboard, lockDashboard, unlockDashboard } from "@/lib/session";
 
 type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -55,6 +55,7 @@ export async function updateDashboardAction(
 ): Promise<ActionResult> {
   const dashboard = await findDashboardByHash(hash);
   if (!dashboard) return { ok: false, error: "Dashboard not found." };
+  if (!(await canAccessDashboard(dashboard))) return { ok: false, error: "Not authorized." };
 
   const trimmedName = input.name.trim();
   if (!trimmedName) return { ok: false, error: "Give your dashboard a name." };

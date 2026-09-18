@@ -30,3 +30,7 @@ Everything below has been built on `dev` and manually verified in-browser; nothi
 - Preset Copy fired immediately with no confirmation, despite the spec asking for the same confirm-gating as Remove.
 - Names typed/pasted into any textarea were silently re-sorted alphabetically on every save; now they keep whatever order they were entered in, and Sort is an explicit tool button only.
 - The lottery bowl's scatter area let names land close enough to the container edges to render partly outside the viewport at larger (highlighted/settled) scale; tightened the placement range and capped each name's width with truncation as a safety net.
+
+### Security
+
+- Every wheel/preset Server Action (sort/shuffle/edit/copy/reset/remove/record-winner/list) took a bare numeric id with no check that the caller's session had unlocked the owning dashboard — since ids are sequential and Server Actions are directly callable, this let anyone bypass a dashboard's password entirely and read or modify any dashboard's data. Added session-based ownership checks (`src/lib/authz.ts`) to every one of these actions, plus closed a related gap where renaming a password-protected dashboard didn't require its password.
