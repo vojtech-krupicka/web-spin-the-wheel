@@ -1,5 +1,6 @@
-import { X } from "lucide-react";
+import { Coffee, X } from "lucide-react";
 import { createPortal } from "react-dom";
+import { APP_VERSION } from "@/lib/version";
 
 type AboutPopupProps = {
   onDismiss: () => void;
@@ -32,6 +33,39 @@ export function AboutPopup({ onDismiss }: AboutPopupProps) {
           Spin the Wheel is a simple, mobile-friendly random-winner picker: a lottery bowl draw or a
           spinning wheel, carousel, or slot-machine cylinder, all built to settle any decision fairly.
         </p>
+
+        <p className="mt-3 font-mono text-xs tracking-wide text-faint">{APP_VERSION}</p>
+
+        <div className="mt-4 flex flex-col gap-2">
+          <a
+            href="https://github.com/vojtech-krupicka/web-spin-the-wheel"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-semibold text-accent-cyan underline underline-offset-4"
+          >
+            View source on GitHub
+          </a>
+          <a
+            href="https://github.com/vojtech-krupicka/web-spin-the-wheel/releases"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-semibold text-accent-cyan underline underline-offset-4"
+          >
+            What&apos;s new
+          </a>
+        </div>
+
+        <div className="mt-5 mb-4 border-t border-border" />
+
+        <a
+          href="https://buymeacoffee.com/vojtech.krupicka"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-center gap-2 rounded-full border border-accent-violet/40 bg-accent-violet/10 px-4 py-2.5 text-sm font-semibold text-accent-violet transition hover:bg-accent-violet/20"
+        >
+          <Coffee size={16} aria-hidden="true" />
+          Buy me a coffee
+        </a>
       </div>
     </div>,
     document.body,
