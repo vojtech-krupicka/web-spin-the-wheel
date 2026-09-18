@@ -48,7 +48,13 @@ export function LoadFromPresetDialog({ hash, bottomBar, onDismiss, onAppend, onR
       addAction={selected.size > 0 ? { label: "Replace", onClick: () => setConfirmReplace(true) } : undefined}
       bottomBar={bottomBar}
     >
-      <PresetBrowser hash={hash} mode="picker" selectedIds={new Set(selected.keys())} onToggleSelect={toggle} />
+      <PresetBrowser
+        hash={hash}
+        mode="picker"
+        bottomBar={bottomBar}
+        selectedIds={new Set(selected.keys())}
+        onToggleSelect={toggle}
+      />
 
       {confirmReplace && (
         <ConfirmDialog

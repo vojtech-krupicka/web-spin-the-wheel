@@ -128,6 +128,7 @@ export function DashboardShell({ hash, initialName, hasPassword: initialHasPassw
               <PresetsScreen
                 hash={hash}
                 refreshToken={presetRefreshToken}
+                bottomBar={dialogBottomBar}
                 onEdit={(preset) => setPresetDialog({ mode: "edit", preset })}
               />
             )}

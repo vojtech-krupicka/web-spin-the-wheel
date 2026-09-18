@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Foldout } from "@/components/ui/Foldout";
 import { PresetFilterSortBar } from "./PresetFilterSortBar";
 import { PresetListRow } from "./PresetListRow";
+import type { BottomBarSlot } from "@/components/layout/BottomBar";
 import { listPresetsAction } from "@/app/d/[hash]/actions";
 import type { PresetSortKey, SortDirection } from "@/lib/db/presets";
 import type { Preset } from "@/lib/db/schema";
@@ -13,6 +14,8 @@ const PAGE_SIZE = 10;
 type PresetBrowserProps = {
   hash: string;
   mode: "manage" | "picker";
+  /** Threaded down to each row's PresetViewDialog (names preview), which needs a DialogShell chrome. */
+  bottomBar: { left: BottomBarSlot; right: BottomBarSlot };
   onEdit?: (preset: Preset) => void;
   /** Bump to force a refetch after a mutation made outside this component (e.g. a create dialog). */
   refreshToken?: number;
@@ -26,7 +29,7 @@ type PresetBrowserProps = {
  * screen (mode="manage") and the wheel edit dialog's "Load from preset"
  * picker (mode="picker").
  */
-export function PresetBrowser({ hash, mode, onEdit, refreshToken = 0, selectedIds, onToggleSelect }: PresetBrowserProps) {
+export function PresetBrowser({ hash, mode, bottomBar, onEdit, refreshToken = 0, selectedIds, onToggleSelect }: PresetBrowserProps) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState("");
   const [sort, setSort] = useState<PresetSortKey>("name");
@@ -115,6 +118,7 @@ export function PresetBrowser({ hash, mode, onEdit, refreshToken = 0, selectedId
                 preset={preset}
                 listType="private"
                 mode={mode}
+                bottomBar={bottomBar}
                 selected={selectedIds?.has(preset.id)}
                 onToggleSelect={onToggleSelect}
                 onEdit={onEdit}
@@ -142,6 +146,7 @@ export function PresetBrowser({ hash, mode, onEdit, refreshToken = 0, selectedId
                 preset={preset}
                 listType="public"
                 mode={mode}
+                bottomBar={bottomBar}
                 selected={selectedIds?.has(preset.id)}
                 onToggleSelect={onToggleSelect}
                 onChanged={refresh}

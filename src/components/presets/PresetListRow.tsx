@@ -5,6 +5,8 @@ import { Copy, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import type { BottomBarSlot } from "@/components/layout/BottomBar";
+import { PresetViewDialog } from "./PresetViewDialog";
 import { findCategory, PRESET_CATEGORIES } from "@/lib/categories";
 import { copyPresetAction, removePresetAction } from "@/app/d/[hash]/actions";
 import type { Preset } from "@/lib/db/schema";
@@ -14,16 +16,28 @@ type PresetListRowProps = {
   preset: Preset;
   listType: "private" | "public";
   mode: "manage" | "picker";
+  bottomBar: { left: BottomBarSlot; right: BottomBarSlot };
   selected?: boolean;
   onToggleSelect?: (preset: Preset) => void;
   onEdit?: (preset: Preset) => void;
   onChanged?: () => void;
 };
 
-export function PresetListRow({ hash, preset, listType, mode, selected, onToggleSelect, onEdit, onChanged }: PresetListRowProps) {
+export function PresetListRow({
+  hash,
+  preset,
+  listType,
+  mode,
+  bottomBar,
+  selected,
+  onToggleSelect,
+  onEdit,
+  onChanged,
+}: PresetListRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [confirmCopy, setConfirmCopy] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const category = findCategory(PRESET_CATEGORIES, preset.category);
 
   async function handleCopy() {
@@ -58,7 +72,14 @@ export function PresetListRow({ hash, preset, listType, mode, selected, onToggle
         <div className="truncate text-[15px] font-bold">{preset.name}</div>
       </div>
 
-      <span className="shrink-0 text-sm font-semibold text-muted">{preset.data.names.length}</span>
+      <button
+        type="button"
+        onClick={() => setViewOpen(true)}
+        aria-label={`View ${preset.name}'s names`}
+        className="shrink-0 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted underline decoration-dotted underline-offset-4 transition hover:text-white"
+      >
+        {preset.data.names.length}
+      </button>
 
       {mode === "manage" && (
         <div className="relative shrink-0">
@@ -129,6 +150,19 @@ export function PresetListRow({ hash, preset, listType, mode, selected, onToggle
             handleCopy();
           }}
           onCancel={() => setConfirmCopy(false)}
+        />
+      )}
+
+      {viewOpen && (
+        <PresetViewDialog
+          hash={hash}
+          preset={preset}
+          listType={listType}
+          mode={mode}
+          bottomBar={bottomBar}
+          onDismiss={() => setViewOpen(false)}
+          onEdit={onEdit}
+          onChanged={onChanged}
         />
       )}
     </div>
