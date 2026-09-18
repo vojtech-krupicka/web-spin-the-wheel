@@ -1,0 +1,90 @@
+@AGENTS.md
+
+# web-spin-the-wheel — project context
+
+A mobile-friendly random-winner picker — pick one name out of a list via a lottery-bowl draw or a spinning wheel/carousel/cylinder — built as a sibling app to [web-roll-the-dice](../web-roll-the-dice), deliberately cloning its stack, "Midnight Arcade" theme, and access model. Developed directly on `dev`, no PR to `main` yet — see "Release workflow" below.
+
+## Confirmed architecture
+
+- **Framework:** Next.js 16 (App Router, TypeScript). Not yet deployed — will go to Vercel once a PR lands on `main` (see Roadmap).
+- **Styling:** Tailwind CSS v4, dark-only "Midnight Arcade" palette — copied verbatim from Roll the Dice's `globals.css` (near-black radial-gradient background, cyan→violet gradient accents, Space Grotesk/Space Mono fonts), same `@theme` token setup, same `prefers-reduced-motion` blanket flattening.
+- **Icons:** `lucide-react`.
+- **Sound:** Web Audio API (`src/lib/sound.ts`), same architecture as Roll the Dice — real clips in `public/sounds/` with a synthesized fallback per category so the app never goes silent. Categories: `playClick` (every button, via `GlobalClickSound`'s document-level listener + `data-sound="none"` opt-out), `playVisualizationTick` (one fixed clip per visualization — `bowl.ogg`/`carousel.ogg`/`cylinder.ogg`/`wheel.ogg` — ticked repeatedly through a spin with small pitch jitter), `playWinChime` (`win-banner-chime.mp3`, once per winner reveal). Sound on/off persisted to `localStorage` (`wheel-app-muted`), toggle lives in both Settings popovers via the shared `SoundToggleRow`.
+- **Database:** Postgres via Drizzle ORM (`drizzle-orm/node-postgres` + `pg`). Local dev DB: Postgres 17 in Docker, container `wheel-db`, mapped to host port **5433** (not 5432 — Roll the Dice's own `dice-pg` already holds that). Migrations: `npm run db:generate` then `npm run db:migrate` (SQL lives in `drizzle/`).
+- **Dashboard access model:** same shape as Roll the Dice's games — a `dashboard` has a 5-character hash (unambiguous alphabet, collision-checked on create) and an optional password (bcryptjs-hashed). Home page: hash input + Join (password field appears only if protected) and Create (name + optional password/repeat). A correct password grants a signed **iron-session** cookie (`src/lib/session.ts`, cookie `wheel-session`) recording which dashboard ids this browser has unlocked; `/d/[hash]` and `/d/[hash]/w/[wheelId]` both check it server-side and redirect to `/?hash=...` if locked, or `/?error=not-found` if the hash doesn't exist.
+- **Data model:** see `src/lib/db/schema.ts`. Three tables, no per-player/per-roll rows like Roll the Dice has — this app has no concept of players.
+  - `dashboards`: id, hash, name, password_hash?, created_at, settings (jsonb, empty-shaped for now — parity placeholder, no fields yet).
+  - `presets`: id, dashboard_id (FK, cascade), name, created_at, category (string id into `WHEEL_CATEGORIES`/`PRESET_CATEGORIES` — see below), data (jsonb `{ names: string[] }`), public (bool). Private list = own dashboard regardless of `public`; public list = `public = true AND dashboard_id != own` (so a dashboard's own public presets show in *its own* private list, badged, not in its own public list).
+  - `wheels`: id, dashboard_id (FK, cascade), name, created_at, updated_at, category, data (jsonb `WheelData`): `templateBucket` (the editable reusable list), `currentBucket` (what's actually being spun — independently sortable/shuffleable/editable, only reseeded from `templateBucket` on Reset or the wheel's very first-ever open), `historyBucket` (`WheelSession[]`, each `{ startedAt, winners: {name, at}[] }` — a new session starts only on Reset or first open, never just by revisiting), `visualization` (`"bowl"|"carousel"|"cylinder"|"wheel"`), `mode` (`"fair"|"force-affects-odds"`).
+- **Categories:** plain TypeScript const arrays (`src/lib/categories.ts`), not DB-backed — `WHEEL_CATEGORIES`/`PRESET_CATEGORIES`, both currently identical (Movies/Books/Music/Series/Games/Board games/IT/Landmarks/Locations/General), each `{id, name, icon, color}`. Adding a category is a code change, not a migration — deliberate, since the list is fixed and code-editable is simpler than a DB table + admin UI for something that never needs runtime editing.
+- **The core mechanic — winner-first, animate-second (built):** `pickWinnerIndex()` (`src/lib/spin/pickWinner.ts`) draws the winner via `crypto.getRandomValues` **before** any animation runs; every visualization is reverse-engineered to land on that index, never the other way around, so the visual outcome can never diverge from the recorded one.
+  - **Force** (press-and-hold on `SpinButton`, capped at 1.8s) only ever changes the *animation* (`src/lib/spin/forceEngine.ts`'s `planFairSpin`/`planForceAffectsOddsSpin` scale `durationMs`/`extraCycles` 1.4–3.2s / 2–6 cycles from hold time) — **except** in `mode: "force-affects-odds"`, where a fresh random permutation of the current list is generated the instant you press, and hold duration selects a position in it (wrapping, ~12 steps/sec) — a real causal input to the result, but not practically aimable since the permutation is new and fast-advancing every spin. Both modes are switchable per-wheel from the wheel screen's Settings popover, alongside the visualization picker.
+  - **No weighted-entries field.** Duplicate names in a list are how a user encodes extra odds — confirmed decision, do not add a weight field. "Remove all" on the winner banner (BM1) exists specifically because of this: it's the only way to clear every copy of a repeated name's weight in one action.
+- **Four visualizations** (`src/components/wheel/visualizations/`), same `{entries, spinning, plan, onSettled}` prop contract, dispatched by `VisualizationHost`:
+  - `WheelPie` — SVG pie wheel, rotates (accumulating, never resets — `Math.ceil(prev/360)*360` math) so the target arc's center lands under a fixed top pointer; labels run tangentially near the rim (`textAnchor="end"`, radius 88 of 95), not radially — radial labels at earlier drafts were unreadable past a handful of segments.
+  - `Cylinder` / `Carousel` — vertical/horizontal "reel" of repeated entries, `src/lib/spin/loopOffset.ts`'s `nextLoopTarget`/`normalizeOffset` keep the animation always moving forward across repeated spins while silently wrapping the pixel offset back into one loop's length while idle (seamless — same visual position, no visible jump) so the rendered DOM stays bounded (`LOOP_REPEATS = 10`) indefinitely.
+  - `LotteryBowl` — names scattered small/dim (`Math.random`-placed, regenerated only when the actual name set changes, not every render — placement generation lives in an effect since it's impure, can't run during render), randomly highlighted with a decelerating cadence before settling enlarged/opaque on the winner.
+  - All four's "start spinning" state transition is committed via React's **render-time state-adjustment pattern** (`if (spinning !== prevSpinning) { setPrevSpinning(...); setX(...) }`, not inside a `useEffect`) since the target is pure/deterministic given `plan` — calling `setState` synchronously inside an effect body for a non-external sync trips this codebase's `react-hooks/set-state-in-effect` lint rule. Only genuinely async/impure work (the settle `setTimeout`, `Math.random` placement) stays in an actual effect.
+
+## Current state
+
+Full DB-backed dashboards/presets/wheels, all four visualizations, force mechanic, sound, and the winner banner (Keep it / Remove it / Remove all + copy-name button) all built and manually verified in-browser. Routes: `/` (join/create), `/d/[hash]` (wheels list ⇄ presets list, toggled client-side, not separate routes), `/d/[hash]/w/[wheelId]` (the wheel itself).
+
+**Data / server layer:**
+- `src/lib/db/schema.ts` / `index.ts` — Drizzle schema and the `pg`-backed client.
+- `src/lib/db/dashboards.ts`, `presets.ts`, `wheels.ts` — query functions (find/create/update/remove/copy, plus wheel-specific `sortWheelCurrentBucket`/`shuffleWheelCurrentBucket`/`updateWheelCurrentBucket`/`appendWheelWinner`/`resetWheelSession`/`updateWheelVisualizationAndMode`).
+- `src/lib/session.ts`, `src/lib/password.ts`, `src/lib/dashboardHash.ts` — iron-session helpers, bcryptjs wrappers, the 5-char hash generator (ports of Roll the Dice's, renamed).
+- `src/lib/nameList.ts` — textarea→names[] parsing (trim/drop-empty, **no auto-sort** — see Resolved decisions), plus `sortNames`/`dedupeNames`/`shuffleNames`.
+- `src/app/actions.ts` — dashboard-level Server Actions (check/join/create, edit/delete/leave). `src/app/d/[hash]/actions.ts` — wheel + preset CRUD scoped to a dashboard. `src/app/d/[hash]/w/[wheelId]/actions.ts` — sort/shuffle/update-current-bucket/record-winner/update-visualization-and-mode. All follow the same `ActionResult<T> = {ok:true,data} | {ok:false,error}` pattern as Roll the Dice.
+
+**Home page** (`src/app/page.tsx` + `src/components/home/`) — `JoinForm`/`CreateDashboardPane`, direct ports of Roll the Dice's `JoinForm`/`CreateGamePane`. Footer tagline is `src/lib/quotes.ts`'s `randomQuote()`, picked client-side after mount (not during the SSR pass, to avoid a hydration mismatch — `useState(QUOTES[0])` then swapped in a `useEffect`).
+
+**Dashboard shell** (`src/app/d/[hash]/page.tsx` server-loads + guards, `src/components/dashboard/DashboardShell.tsx` is the client shell):
+- `src/components/layout/TopBar.tsx`/`BottomBar.tsx` — ported from Roll the Dice, but `BottomBar` is **fully generic** here (`{left, right}` each `{icon, label, onClick?, active?, disabled?}`) rather than a fixed Players/Hand nav, because this app's BL1/BR1 mean different things per screen (Dashboard⇄Presets nav, Sort/Shuffle, Keep-it/Remove-it) — Roll the Dice never needed that since its bottom bar only ever meant one thing.
+- `src/components/ui/DialogShell.tsx` — same shared full-screen dialog chrome as Roll the Dice, `bottomBar` prop threaded down the same way `bottomNav` was there, updated to the generic shape above.
+- `src/components/dashboard/WheelsList.tsx`/`WheelListRow.tsx`, `PresetsScreen.tsx` (thin wrapper hosting `PresetBrowser` in `mode="manage"`), `SettingsPopover.tsx` (Dashboard options / Sound / Help / About), `DashboardEditDialog.tsx` (rename/password/delete/leave), `LeaveButton.tsx`, `WheelEditDialog.tsx` (name/category/template textarea + tools, Remove, Reset — also reused unmodified inside `WheelScreen` for in-wheel editing).
+- `src/components/presets/PresetBrowser.tsx` — the shared preset list (two `Foldout`s, `PresetFilterSortBar`, per-list "Load more" pagination) reused as-is by both the standalone Presets screen (`mode="manage"`, kebab menu) and the wheel edit dialog's "Load from preset" tool (`LoadFromPresetDialog.tsx`, `mode="picker"`, checkboxes + Append/Replace — Replace repurposes `DialogShell`'s `addAction` pill since it only has room for one FAB + one extra action). `PresetEditDialog.tsx` handles create/edit for both entry points.
+
+**Wheel screen** (`src/components/wheel/WheelScreen.tsx` is the client shell, owns current/history bucket state, dialog state, and the spin/force state machine):
+- `SpinButton.tsx` — press-and-hold FAB, pointer down/up (not click) drives a `requestAnimationFrame` charge loop; opts out of the global click sound (`data-sound="none"`) since it has its own tick sounds instead.
+- `EdgePill.tsx` — the History/Current-list floating pills, `fixed` + `z-50` specifically so the *other* pill stays visible and clickable **above** whichever `DialogShell` overlay (`z-40`) is currently open, per spec (clicking the visible pill switches dialogs directly without closing first).
+- `HistoryDialog.tsx` (sessions as `Foldout`s, most-recent open by default), `CurrentBucketDialog.tsx` (static table ⇄ free-edit textarea via an Edit `Switch`), `WinnerBanner.tsx` (blurred-backdrop reveal, gradient name text is an **inline style**, not the `bg-clip-text` Tailwind utility — that utility wasn't being generated by this project's Tailwind v4 setup for reasons not fully diagnosed, inline `style={{backgroundImage, WebkitBackgroundClip, backgroundClip, color:"transparent"}}` sidesteps it reliably), `WheelSettingsPopover.tsx` (visualization picker, Fair/Force-affects-odds switch, Sound, Wheel options, Help, About).
+- `src/lib/datetime.ts`'s `formatDateTime()` — every displayed timestamp (winner banner, history) uses this (`YYYY-mm-dd HH:MM:SS`, local time), not `toLocaleString()` — a deliberate choice, not a default.
+
+## Sound system
+
+Same shape as Roll the Dice's `src/lib/sound.ts`: `playRandomClip(urls, pitchRange, volume, fallback)` picks a clip (pass a single-element array to always play that exact one — used for the fixed per-visualization tick clips), decodes-and-caches by URL, falls back to a synthesized oscillator/envelope sound on any failure. `muted` gates every exported `play*`, backed by `localStorage["wheel-app-muted"]`.
+
+## Dev environment notes
+
+- Node.js on Windows directly (not WSL, not containerized) — same setup as Roll the Dice, see that project's CLAUDE.md for the PATH gotcha if `node`/`npm` aren't found in a fresh shell.
+- **Env vars:** `.env` (gitignored) holds `DATABASE_URL` and `SESSION_SECRET`; `.env.example` is the committed template.
+- **Local Postgres:** `docker run --name wheel-db -e POSTGRES_PASSWORD=dev -p 5433:5432 -d postgres:17`. After a schema change: `npm run db:generate` then `npm run db:migrate`. `npm run db:studio` opens Drizzle Studio.
+- **Browser-pane dev server preview:** `.claude/launch.json` points at `.claude/dev.cmd` (same PATH-prepend wrapper as Roll the Dice), port 3000 — same port Roll the Dice's own dev server uses, so don't run both at once.
+
+## Conventions
+
+Same as Roll the Dice's, plus:
+- Feature components under `src/components/<feature>/`; shared non-component logic in `src/lib/`; DB-specific code in `src/lib/db/`.
+- Keep `"use client"` on the top-level component owning interactive state (`page.tsx`, `*Shell.tsx`, `*Screen.tsx`); presentational subcomponents stay plain function components.
+- A `.$type<T>()` jsonb column's shape is defined once in `db/schema.ts` and re-exported (not redefined) elsewhere.
+- Buttons get their click sound for free from `GlobalClickSound`'s document-level listener — don't add per-button sound-playing code; opt out with `data-sound="none"` only when a button genuinely has its own sound instead (currently just `SpinButton`).
+- Prefer the render-time state-adjustment pattern over `useEffect` for state changes that are pure/deterministic functions of props (see "The core mechanic" above) — it's not just style, this codebase's lint config (`react-hooks/set-state-in-effect`) actively rejects the effect-based version for anything that isn't genuinely syncing with something external.
+- Names typed/pasted into any textarea keep their input order on save — **do not re-sort automatically**; Sort is an explicit tool button only (see Resolved decisions).
+
+## Release workflow
+
+Not yet deployed. Plan (once the user says so): push `dev` to the GitHub remote, open a PR into `main`, set up a Neon Postgres project and Vercel deployment (mirroring Roll the Dice's `main`-is-production / Vercel-auto-deploys setup), apply migrations against Neon. No version scheme decided yet — likely semantic versioning from the first release, same as Roll the Dice adopted at its v1.0.0.
+
+## Roadmap (not yet built)
+
+- Deployment (GitHub push, PR to `main`, Vercel + Neon) — pending the user's go-ahead.
+
+## Resolved decisions
+
+- **No weighted-entries field.** Raised at the very start of the project (before any code existed) as "should force or entries have an explicit weight?" — the user's call: duplicate names in a list are how weight gets encoded, full stop. This is why "Remove all" exists on the winner banner (BM1) — it's the only way to clear every copy of a repeated name's weight in one action, since there's no single weight number to just set to zero.
+- **Names don't auto-sort on save.** Originally `parseNameList()` sorted alphabetically on every save (mirroring an early assumption that the stored list should always be canonically ordered). Explicitly reversed after the user tested it: editing a list re-sorted it on every save, silently reordering manual edits. Now `parseNameList()` only trims/drops-empty; alphabetical order is applied exclusively via the explicit Sort tool button.
+- **Preset Copy is confirmation-gated**, same as Remove — was in the original spec, initially missed during the presets build, added after a spec-compliance pass.
+- **`bg-clip-text` (Tailwind utility) doesn't render** in this project's Tailwind v4 setup — root cause not fully diagnosed (compiled CSS simply didn't include the rule). `WinnerBanner`'s gradient name text uses an inline `style` object instead. If a future gradient-text need comes up elsewhere, reach for the same inline-style approach rather than re-attempting the utility class.
+- **`PresetFilterSortBar` is two rows, not one.** A single `flex flex-wrap` row (category select, name filter, sort select, direction toggle) squeezed the name filter input down to a sliver at ~375px width, cutting off its placeholder. Fixed by giving the name filter its own full-width row, with the three narrower controls sharing the row below — found and fixed during a dedicated mobile-viewport (375×812) pass across every screen, which otherwise turned up no other layout issues.
+- **Shared `HelpPopup`** (`src/components/ui/HelpPopup.tsx`), not two separate ones. Covers dashboards/presets/wheels/spinning/after-a-spin in one set of sections, opened identically from both the dashboard and wheel Settings popovers — mirrors how `AboutPopup` is already shared, avoids fragmenting help content by entry point.
