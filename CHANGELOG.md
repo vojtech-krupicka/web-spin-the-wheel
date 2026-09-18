@@ -6,7 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); thi
 
 ## [Unreleased]
 
-Everything below has been built on `dev` and manually verified in-browser; nothing has shipped to `main`/production yet.
+## [1.0.0] - 2026-09-18
+
+First release, deployed to Vercel + Neon.
 
 ### Added
 
